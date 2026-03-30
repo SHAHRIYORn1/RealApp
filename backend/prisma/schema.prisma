@@ -1,0 +1,133 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 👤 User Model
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
+  role      Role     @default(USER)
+  avatar    String?  @db.Text
+  phone     String?  @db.VarChar(20)
+  address   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders    Order[]
+  comments  Comment[]
+  likes     Like[]
+
+  @@map("users")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// 🍰 Cake Model
+model Cake {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  description String   @db.Text
+  price       Float
+  imageUrl    String   @db.Text
+  category    String   @db.VarChar(100)
+  weight      String?  @db.VarChar(50)
+  ingredients String   @db.Text  // ✅ O'zgartirildi: String[] -> String (comma-separated)
+  isAvailable Boolean  @default(true)
+  rating      Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  comments    Comment[]
+  likes       Like[]
+  orderItems  OrderItem[]
+
+  @@map("cakes")
+  @@index([category])
+  @@index([name])
+}
+
+// backend/prisma/schema.prisma
+
+model Order {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  address         String
+  phone           String
+  note            String?
+  additionalInfo  String?  // ✅ YANGI MAYDON!
+  totalAmount     Float
+  status          OrderStatus @default(PENDING)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  DELIVERED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+
+// 📦 OrderItem Model
+model OrderItem {
+  id        Int   @id @default(autoincrement())
+  orderId   Int
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  cakeId    Int
+  cake      Cake  @relation(fields: [cakeId], references: [id])
+  quantity  Int
+  price     Float
+
+  @@map("order_items")
+  @@unique([orderId, cakeId])
+}
+
+// 💬 Comment Model
+model Comment {
+  id        Int      @id @default(autoincrement())
+  text      String   @db.Text
+  rating    Int?
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cakeId    Int
+  cake      Cake     @relation(fields: [cakeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
+  @@index([cakeId])
+}
+
+// ❤️ Like Model
+model Like {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cakeId    Int
+  cake      Cake     @relation(fields: [cakeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, cakeId])
+  @@map("likes")
+}
