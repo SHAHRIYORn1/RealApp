@@ -1,5 +1,5 @@
 // mobile-app/src/screens/profile/SettingsScreen.js
-import React, { useState } from 'react';
+import React, { useState } from 'react';  // ✅ useState import qilindi!
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { useAuth } from '../../context/AuthContext';
 import { userAPI } from '../../services/api';
 
 const SettingsScreen = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [address, setAddress] = useState(user?.address || '');
@@ -29,18 +29,38 @@ const SettingsScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await userAPI.updateProfile({
+      console.log('📤 Profil yangilash:', { 
+        name: name.trim(), 
+        phone: phone.trim(), 
+        address: address.trim() 
+      });
+      
+      const response = await userAPI.updateProfile({
         name: name.trim(),
         phone: phone.trim() || null,
         address: address.trim() || null,
       });
       
-      Alert.alert('✅ Saqlandi', 'Ma\'lumotlaringiz muvaffaqiyatli yangilandi!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      console.log('📥 Javob:', response.data);
+      
+      if (response.data.success) {
+        // ✅ UI darhol yangilanadi
+        await updateUser({
+          name: name.trim(),
+          phone: phone.trim() || null,
+          address: address.trim() || null,
+        });
+        
+        Alert.alert('✅ Saqlandi', 'Ma\'lumotlaringiz muvaffaqiyatli yangilandi!', [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]);
+      } else {
+        throw new Error(response.data.message || 'Saqlashda xato');
+      }
     } catch (error) {
-      console.error('Saqlash xatosi:', error);
-      Alert.alert('Xato', 'Saqlashda xato yuz berdi');
+      console.error('❌ Saqlash xatosi:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Saqlashda xato yuz berdi';
+      Alert.alert('Xato', errorMsg);
     } finally {
       setLoading(false);
     }

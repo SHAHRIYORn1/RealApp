@@ -9,12 +9,13 @@ import {
   TextInput,
   Alert,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   RefreshControl,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { cakeAPI } from '../../services/api';
 
 const AdminCakesScreen = ({ navigation }) => {
@@ -25,6 +26,7 @@ const AdminCakesScreen = ({ navigation }) => {
   
   const [modalVisible, setModalVisible] = useState(false);
   const [editingCake, setEditingCake] = useState(null);
+  const [imageUri, setImageUri] = useState(null);
   const [formData, setFormData] = useState({
     name: '', description: '', price: '', imageUrl: '',
     category: '', weight: '', ingredients: '',
@@ -61,6 +63,7 @@ const AdminCakesScreen = ({ navigation }) => {
 
   const openAddModal = () => {
     setEditingCake(null);
+    setImageUri(null);
     setFormData({
       name: '', description: '', price: '', imageUrl: '',
       category: '', weight: '', ingredients: '',
@@ -70,6 +73,7 @@ const AdminCakesScreen = ({ navigation }) => {
 
   const openEditModal = (cake) => {
     setEditingCake(cake);
+    setImageUri(cake.imageUrl || null);
     setFormData({
       name: cake.name || '',
       description: cake.description || '',
@@ -82,27 +86,66 @@ const AdminCakesScreen = ({ navigation }) => {
     setModalVisible(true);
   };
 
+  // ✅ Galereyadan rasm tanlash
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Ruxsat kerak', 'Rasm tanlash uchun ruxsat bering');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+      setFormData({ ...formData, imageUrl: result.assets[0].uri });
+    }
+  };
+
+  // ✅ Kamera orqali rasm olish
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Ruxsat kerak', 'Kamera ishlatish uchun ruxsat bering');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+      setFormData({ ...formData, imageUrl: result.assets[0].uri });
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.name || !formData.price) {
       Alert.alert('Xato', 'Nom va narx majburiy');
       return;
     }
-
     try {
+      const submitData = {
+        ...formData,
+        price: parseFloat(formData.price),
+        weight: formData.weight || null,
+        ingredients: formData.ingredients || null,
+      };
       if (editingCake) {
-        await cakeAPI.update(editingCake.id, {
-          ...formData, price: parseFloat(formData.price),
-        });
+        await cakeAPI.update(editingCake.id, submitData);
         Alert.alert('Muvaffaqiyat', 'Tort yangilandi');
       } else {
-        await cakeAPI.create({
-          ...formData, price: parseFloat(formData.price),
-        });
+        await cakeAPI.create(submitData);
         Alert.alert('Muvaffaqiyat', 'Tort qo\'shildi');
       }
       setModalVisible(false);
       fetchCakes(searchQuery);
     } catch (error) {
+      console.error('Xato:', error);
       Alert.alert('Xato', error.response?.data?.message || 'Amalni bajarishda xato');
     }
   };
@@ -168,6 +211,7 @@ const AdminCakesScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1F2937" />
@@ -178,6 +222,7 @@ const AdminCakesScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
+      {/* Search */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
           <Ionicons name="search" size={20} color="#9CA3AF" />
@@ -195,6 +240,7 @@ const AdminCakesScreen = ({ navigation }) => {
         </View>
       </View>
 
+      {/* List */}
       <FlatList
         data={cakes}
         renderItem={renderCakeItem}
@@ -238,13 +284,47 @@ const AdminCakesScreen = ({ navigation }) => {
               <Text style={styles.inputLabel}>Kategoriya</Text>
               <TextInput style={styles.input} value={formData.category} onChangeText={(text) => setFormData({ ...formData, category: text })} placeholder="Shokoladli, Vanilli..." />
             </View>
+            
+            {/* ✅ Image Picker */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Rasm URL</Text>
+              <Text style={styles.inputLabel}>Rasm</Text>
+              <View style={styles.imagePickerContainer}>
+                {imageUri ? (
+                  <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
+                ) : (
+                  <View style={styles.imagePlaceholder}>
+                    <Ionicons name="image-outline" size={40} color="#9CA3AF" />
+                    <Text style={styles.imagePlaceholderText}>Rasm yo'q</Text>
+                  </View>
+                )}
+                <View style={styles.imageButtons}>
+                  <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
+                    <Ionicons name="images" size={20} color="#fff" />
+                    <Text style={styles.imageButtonText}>Galereya</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+                    <Ionicons name="camera" size={20} color="#fff" />
+                    <Text style={styles.imageButtonText}>Kamera</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Rasm URL (ixtiyoriy)</Text>
               <TextInput style={styles.input} value={formData.imageUrl} onChangeText={(text) => setFormData({ ...formData, imageUrl: text })} placeholder="https://..." />
             </View>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Tavsif</Text>
-              <TextInput style={[styles.input, styles.textArea]} value={formData.description} onChangeText={(text) => setFormData({ ...formData, description: text })} placeholder="Tort haqida ma'lumot..." multiline numberOfLines={4} />
+              <TextInput style={[styles.input, styles.textArea]} value={formData.description} onChangeText={(text) => setFormData({ ...formData, description: text })} placeholder="Tort haqida ma'lumot..." multiline numberOfLines={3} />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Vazn</Text>
+              <TextInput style={styles.input} value={formData.weight} onChangeText={(text) => setFormData({ ...formData, weight: text })} placeholder="1kg, 2kg..." />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Tarkibi</Text>
+              <TextInput style={[styles.input, styles.textArea]} value={formData.ingredients} onChangeText={(text) => setFormData({ ...formData, ingredients: text })} placeholder="Un, tuxum, shakar..." multiline numberOfLines={3} />
             </View>
           </ScrollView>
           
@@ -325,6 +405,22 @@ const styles = StyleSheet.create({
   cancelButtonText: { color: '#1F2937', fontWeight: '600', fontSize: 15 },
   saveButton: { backgroundColor: '#FF6B6B' },
   saveButtonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  // Image Picker Styles
+  imagePickerContainer: { alignItems: 'center', marginBottom: 16 },
+  previewImage: { width: '100%', height: 150, borderRadius: 12, marginBottom: 12 },
+  imagePlaceholder: {
+    width: '100%', height: 150, borderRadius: 12,
+    backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center',
+    marginBottom: 12,
+  },
+  imagePlaceholderText: { color: '#9CA3AF', marginTop: 8 },
+  imageButtons: { flexDirection: 'row', gap: 12 },
+  imageButton: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FF6B6B', paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 10, gap: 6,
+  },
+  imageButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
 });
 
 export default AdminCakesScreen;

@@ -12,6 +12,9 @@ router.get('/admin', protect, admin, orderController.getAllOrders);
 // PUT /api/orders/:id/status - MUST be before /:id
 router.put('/:id/status', protect, admin, orderController.updateOrderStatus);
 
+// DELETE /api/orders/:id - Delete order (User or Admin)
+router.delete('/:id', protect, orderController.deleteOrder);
+
 // GET /api/orders - Get my orders
 router.get('/', protect, orderController.getMyOrders);
 

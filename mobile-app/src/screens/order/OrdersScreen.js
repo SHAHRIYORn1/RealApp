@@ -5,17 +5,15 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
-  Image,
-  ActivityIndicator,
   StyleSheet,
+  ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../context/AuthContext';
 import { orderAPI } from '../../services/api';
 
 const OrdersScreen = ({ navigation }) => {
-  const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,8 +21,8 @@ const OrdersScreen = ({ navigation }) => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await orderAPI.getMyOrders({ page: 1, limit: 20 });
-      const ordersData = response.data?.data?.orders || response.data?.orders || [];
+      const response = await orderAPI.getMyOrders();
+      const ordersData = response.data?.data?.orders || [];
       setOrders(ordersData);
     } catch (error) {
       console.error('Buyurtmalarni yuklashda xato:', error);
@@ -41,6 +39,30 @@ const OrdersScreen = ({ navigation }) => {
   const onRefresh = () => {
     setRefreshing(true);
     fetchOrders();
+  };
+
+  // ✅ Buyurtmani o'chirish
+  const handleDeleteOrder = (orderId) => {
+    Alert.alert(
+      'Buyurtmani o\'chirish',
+      'Bu buyurtmani o\'chirmoqchimisiz?',
+      [
+        { text: 'Bekor qilish', style: 'cancel' },
+        {
+          text: 'Ha, o\'chirish',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await orderAPI.delete(orderId);
+              Alert.alert('O\'chirildi', 'Buyurtma o\'chirildi');
+              fetchOrders(); // Ro'yxatni yangilash
+            } catch (error) {
+              Alert.alert('Xato', 'O\'chirishda xato yuz berdi');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getStatusColor = (status) => {
@@ -66,60 +88,47 @@ const OrdersScreen = ({ navigation }) => {
   };
 
   const renderOrderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.orderCard}
-      onPress={() => navigation.navigate('CakeDetail', { cakeId: item.items?.[0]?.cakeId })}
-      activeOpacity={0.7}
-    >
+    <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
-        <Text style={styles.orderId}>#{item.id}</Text>
+        <View>
+          <Text style={styles.orderId}>#{item.id}</Text>
+          <Text style={styles.orderDate}>
+            {new Date(item.createdAt).toLocaleDateString('uz-UZ')}
+          </Text>
+        </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
           <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
         </View>
       </View>
 
-      <View style={styles.orderItems}>
-        {item.items?.slice(0, 2).map((orderItem, index) => (
-          <View key={index} style={styles.orderItemRow}>
-            {orderItem.cake?.imageUrl ? (
-              <Image source={{ uri: orderItem.cake.imageUrl }} style={styles.itemImage} resizeMode="cover" />
-            ) : (
-              <View style={styles.itemImagePlaceholder}>
-                <Ionicons name="restaurant-outline" size={20} color="#9CA3AF" />
-              </View>
-            )}
-            <View style={styles.itemInfo}>
-              <Text style={styles.itemName} numberOfLines={1}>{orderItem.cake?.name || 'Noma\'lum'}</Text>
-              <Text style={styles.itemQty}>x{orderItem.quantity}</Text>
-            </View>
+      <View style={styles.itemsList}>
+        {item.items?.map((orderItem, index) => (
+          <View key={index} style={styles.itemRow}>
+            <Text style={styles.itemName}>{orderItem.cake?.name || 'Noma\'lum'}</Text>
+            <Text style={styles.itemQty}>x{orderItem.quantity}</Text>
             <Text style={styles.itemPrice}>{(orderItem.price * orderItem.quantity).toLocaleString()} so'm</Text>
           </View>
         ))}
-        {item.items?.length > 2 && (
-          <Text style={styles.moreItems}>+{item.items.length - 2} ta yana...</Text>
-        )}
       </View>
 
       <View style={styles.orderFooter}>
-        <View>
-          <Text style={styles.footerLabel}>Manzil</Text>
-          <Text style={styles.footerValue} numberOfLines={1}>{item.address}</Text>
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.footerLabel}>Jami</Text>
+        <View style={styles.footerLeft}>
+          <Text style={styles.totalLabel}>Jami:</Text>
           <Text style={styles.totalAmount}>{item.totalAmount?.toLocaleString()} so'm</Text>
         </View>
+        
+        {/* ✅ O'chirish tugmasi */}
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => handleDeleteOrder(item.id)}
+        >
+          <Ionicons name="trash-outline" size={20} color="#EF4444" />
+        </TouchableOpacity>
       </View>
-
-      <Text style={styles.orderDate}>
-        {new Date(item.createdAt).toLocaleDateString('uz-UZ', {
-          year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-        })}
-      </Text>
-    </TouchableOpacity>
+    </View>
   );
 
-  if (loading && orders.length === 0) {
+  if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF6B6B" />
@@ -130,89 +139,98 @@ const OrdersScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Buyurtmalarim</Text>
         <TouchableOpacity onPress={onRefresh} disabled={refreshing}>
           <Ionicons name="refresh" size={24} color={refreshing ? '#9CA3AF' : '#FF6B6B'} />
         </TouchableOpacity>
       </View>
 
-      {orders.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="cart-outline" size={60} color="#9CA3AF" />
+      <FlatList
+        data={orders}
+        renderItem={renderOrderItem}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FF6B6B']} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="cart-outline" size={60} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>Buyurtmalar yo'q</Text>
+            <Text style={styles.emptySubtitle}>Hozircha buyurtmalaringiz yo'q</Text>
+            <TouchableOpacity 
+              style={styles.shopButton}
+              onPress={() => navigation.navigate('Home')}
+            >
+              <Text style={styles.shopButtonText}>Xarid qilish</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.emptyTitle}>Buyurtmalar yo'q</Text>
-          <Text style={styles.emptySubtitle}>Hozircha buyurtmangiz yo'q</Text>
-          <TouchableOpacity style={styles.browseButton} onPress={() => navigation.navigate('Home')}>
-            <Text style={styles.browseButtonText}>Tortlarni ko'rish</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={orders}
-          renderItem={renderOrderItem}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FF6B6B']} />
-          }
-        />
-      )}
+        }
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
+  // Header
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#fff', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
+    paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#1F2937' },
+  backButton: { padding: 4 },
+  headerTitle: { flex: 1, fontSize: 20, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginRight: 24 },
+  // List
   listContent: { padding: 16, paddingBottom: 100 },
   orderCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
   },
-  orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   orderId: { fontSize: 16, fontWeight: 'bold', color: '#1F2937' },
+  orderDate: { fontSize: 13, color: '#6B7280', marginTop: 2 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   statusText: { fontSize: 12, color: '#fff', fontWeight: '600' },
-  orderItems: { marginBottom: 12 },
-  orderItemRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  itemImage: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#F3F4F6' },
-  itemImagePlaceholder: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
-  itemInfo: { flex: 1, marginLeft: 12 },
-  itemName: { fontSize: 14, fontWeight: '500', color: '#1F2937' },
-  itemQty: { fontSize: 12, color: '#6B7280' },
+  itemsList: { marginBottom: 12 },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  itemName: { fontSize: 14, color: '#1F2937', flex: 1 },
+  itemQty: { fontSize: 14, color: '#6B7280', marginHorizontal: 12 },
   itemPrice: { fontSize: 14, fontWeight: 'bold', color: '#FF6B6B' },
-  moreItems: { fontSize: 12, color: '#6B7280', marginLeft: 52 },
-  orderFooter: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
+  orderFooter: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingTop: 12, 
+    borderTopWidth: 1, 
+    borderColor: '#F3F4F6' 
   },
-  footerLabel: { fontSize: 12, color: '#6B7280', marginBottom: 4 },
-  footerValue: { fontSize: 13, color: '#1F2937', maxWidth: 150 },
-  totalAmount: { fontSize: 16, fontWeight: 'bold', color: '#FF6B6B' },
-  orderDate: { fontSize: 12, color: '#9CA3AF', textAlign: 'right' },
-  // Empty State
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyIcon: {
-    width: 120, height: 120, borderRadius: 60, backgroundColor: '#F3F4F6',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 24,
+  footerLeft: { flexDirection: 'row', alignItems: 'center' },
+  totalLabel: { fontSize: 14, color: '#6B7280', marginRight: 8 },
+  totalAmount: { fontSize: 18, fontWeight: 'bold', color: '#FF6B6B' },
+  deleteButton: {
+    padding: 8,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
   },
-  emptyTitle: { fontSize: 22, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 },
-  emptySubtitle: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 32 },
-  browseButton: {
-    backgroundColor: '#FF6B6B', paddingHorizontal: 40, paddingVertical: 16,
-    borderRadius: 14, shadowColor: '#FF6B6B', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
+  // Empty
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginTop: 16, marginBottom: 8 },
+  emptySubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 24 },
+  shopButton: {
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  browseButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  shopButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   // Loading
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
   loadingText: { marginTop: 12, color: '#6B7280', fontSize: 16 },

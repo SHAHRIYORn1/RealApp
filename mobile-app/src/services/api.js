@@ -82,14 +82,16 @@ export const orderAPI = {
   create: (data) => api.post('/orders', data),
   getMyOrders: (params) => api.get('/orders', { params }),
   getById: (id) => api.get(`/orders/${id}`),
-  getAll: (params) => api.get('/orders/admin', { params }),
+  getAll: () => api.get('/orders/admin'),
   updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
+  delete: (id) => api.delete(`/orders/${id}`),  // ✅ YANGI!
 };
 
 // 👤 User API
+// 👤 User API
 export const userAPI = {
   getProfile: () => api.get('/users/me'),
-  updateProfile: (data) => api.put('/users/me', data),
+  updateProfile: (data) => api.put('/users/me', data),  // ✅ To'g'ri
 };
 
 export default api;

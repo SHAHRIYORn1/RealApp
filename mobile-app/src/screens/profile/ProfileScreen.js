@@ -1,16 +1,17 @@
-// mobile-app/src/screens/profile/ProfileScreen.js
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
-  StyleSheet,
+  TextInput,
+  StyleSheet,  // ✅ Borligiga ishonch hosil qiling
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-
+import { userAPI } from '../../services/api';
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
 

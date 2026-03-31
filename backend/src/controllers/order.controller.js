@@ -220,3 +220,57 @@ exports.updateOrderStatus = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server xatosi' });
   }
 };
+
+// DELETE /api/orders/:id - Delete order (User yoki Admin)
+exports.deleteOrder = async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    if (!orderId || isNaN(orderId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Noto\'g\'ri buyurtma ID' 
+      });
+    }
+
+    // Buyurtmani topish
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Buyurtma topilmadi' 
+      });
+    }
+
+    // Faqat o'z buyurtmasini yoki admin o'chira oladi
+    if (order.userId !== userId && userRole !== 'ADMIN') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Bu buyurtmani o\'chirishga ruxsat yo\'q' 
+      });
+    }
+
+    // Buyurtma items larini o'chirish (cascade bo'ladi)
+    await prisma.order.delete({
+      where: { id: orderId }
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Buyurtma muvaffaqiyatli o\'chirildi' 
+    });
+  } catch (error) {
+    console.error('Delete order error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server xatosi',
+      error: error.message 
+    });
+  }
+};

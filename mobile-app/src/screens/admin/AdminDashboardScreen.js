@@ -3,11 +3,12 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  ScrollView,  // ✅ SHU MUHIM!
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
@@ -45,7 +46,6 @@ const AdminDashboardScreen = ({ navigation }) => {
       setStats({ totalCakes, totalOrders, pendingOrders, totalRevenue });
     } catch (error) {
       console.error('Statistika xatosi:', error);
-      // Xato bo'lsa ham, default qiymatlar bilan davom etamiz
       setStats({ totalCakes: 0, totalOrders: 0, pendingOrders: 0, totalRevenue: 0 });
     } finally {
       setLoading(false);
@@ -98,7 +98,19 @@ const AdminDashboardScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      {/* ✅ RefreshControl bilan ScrollView */}
+      <ScrollView 
+        style={styles.scroll} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={loading} 
+            onRefresh={loadStats} 
+            colors={['#FF6B6B']} 
+            tintColor="#FF6B6B"
+          />
+        }
+      >
         
         {/* Stats Grid */}
         <View style={styles.grid}>
@@ -124,7 +136,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('AdminOrders')}
           />
           <StatCard
-            title="Daromad"
+            title="💰 Daromad"
             value={`${stats.totalRevenue.toLocaleString()} so'm`}
             icon="cash"
             color="#10B981"
@@ -167,7 +179,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           <Ionicons name="information-circle" size={24} color="#3B82F6" />
           <Text style={styles.infoText}>
             Barcha ma'lumotlar real vaqtda yangilanadi. 
-            {'\n'}Yangilash uchun sahifani tortib qo'ying.
+            {'\n'}Yangilash uchun sahifani pastga torting.
           </Text>
         </View>
 

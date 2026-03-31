@@ -1,4 +1,3 @@
-// mobile-app/src/screens/profile/MyAddressesScreen.js
 import React, { useState } from 'react';
 import {
   View,
@@ -6,7 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  StyleSheet,
+  StyleSheet,  // ✅ Borligiga ishonch hosil qiling
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -15,7 +14,7 @@ import { useAuth } from '../../context/AuthContext';
 import { userAPI } from '../../services/api';
 
 const MyAddressesScreen = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();  // ✅ updateUser ni qo'shing
   const [address, setAddress] = useState(user?.address || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [loading, setLoading] = useState(false);
@@ -25,7 +24,6 @@ const MyAddressesScreen = ({ navigation }) => {
       Alert.alert('Manzil', 'Iltimos, manzilni kiriting');
       return;
     }
-
     if (!phone.trim()) {
       Alert.alert('Telefon', 'Iltimos, telefon raqamini kiriting');
       return;
@@ -33,22 +31,39 @@ const MyAddressesScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await userAPI.updateProfile({ 
+      console.log('📤 Manzil saqlash:', { 
         phone: phone.trim(), 
         address: address.trim() 
       });
       
-      Alert.alert('✅ Saqlandi', 'Manzilingiz muvaffaqiyatli saqlandi!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      const response = await userAPI.updateProfile({ 
+        phone: phone.trim(), 
+        address: address.trim() 
+      });
+      
+      console.log('📥 Javob:', response.data);
+      
+      if (response.data.success) {
+        // ✅ AuthContext ni yangilash
+        await updateUser({
+          phone: phone.trim(),
+          address: address.trim()
+        });
+        
+        Alert.alert('✅ Saqlandi', 'Manzilingiz muvaffaqiyatli saqlandi!', [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]);
+      } else {
+        throw new Error(response.data.message || 'Saqlashda xato');
+      }
     } catch (error) {
-      console.error('Saqlash xatosi:', error);
-      Alert.alert('Xato', 'Saqlashda xato yuz berdi');
+      console.error('❌ Saqlash xatosi:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Saqlashda xato yuz berdi';
+      Alert.alert('Xato', errorMsg);
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <View style={styles.container}>
       {/* Header */}

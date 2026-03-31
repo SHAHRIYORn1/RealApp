@@ -1,4 +1,3 @@
-// mobile-app/src/screens/profile/FavoritesScreen.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,14 +5,13 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  StyleSheet,
+  StyleSheet,  // ✅ QO'SHING!
   ActivityIndicator,
   RefreshControl,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cakeAPI, likeAPI } from '../../services/api';
-
 const FavoritesScreen = ({ navigation }) => {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
