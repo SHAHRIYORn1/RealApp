@@ -1,16 +1,13 @@
 // backend/src/routes/comment.routes.js
 const express = require('express');
 const router = express.Router();
+const { protect, admin } = require('../middleware/auth.middleware');
 const commentController = require('../controllers/comment.controller');
-const { protect } = require('../middleware/auth');
 
-// GET /api/cakes/:cakeId/comments - Commentlarni olish
-router.get('/:cakeId/comments', commentController.getCakeComments);
+// GET /api/cakes/:cakeId/comments - Get comments for a cake
+router.get('/:cakeId/comments', commentController.getCommentsByCake);
 
-// POST /api/cakes/:cakeId/comments - Yangi comment
+// POST /api/cakes/:cakeId/comments - Create comment
 router.post('/:cakeId/comments', protect, commentController.createComment);
-
-// DELETE /api/comments/:id - Commentni o'chirish
-router.delete('/:id', protect, commentController.deleteComment);
 
 module.exports = router;

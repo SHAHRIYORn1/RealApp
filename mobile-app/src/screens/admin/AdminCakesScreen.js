@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { cakeAPI } from '../../services/api';
+import { cakeAPI, uploadAPI } from '../../services/api';
 
 const AdminCakesScreen = ({ navigation }) => {
   const [cakes, setCakes] = useState([]);
@@ -27,6 +27,7 @@ const AdminCakesScreen = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingCake, setEditingCake] = useState(null);
   const [imageUri, setImageUri] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: '', description: '', price: '', imageUrl: '',
     category: '', weight: '', ingredients: '',
@@ -64,6 +65,7 @@ const AdminCakesScreen = ({ navigation }) => {
   const openAddModal = () => {
     setEditingCake(null);
     setImageUri(null);
+    setUploading(false);
     setFormData({
       name: '', description: '', price: '', imageUrl: '',
       category: '', weight: '', ingredients: '',
@@ -74,6 +76,7 @@ const AdminCakesScreen = ({ navigation }) => {
   const openEditModal = (cake) => {
     setEditingCake(cake);
     setImageUri(cake.imageUrl || null);
+    setUploading(false);
     setFormData({
       name: cake.name || '',
       description: cake.description || '',
@@ -86,40 +89,63 @@ const AdminCakesScreen = ({ navigation }) => {
     setModalVisible(true);
   };
 
-  // ✅ Galereyadan rasm tanlash
+  // ✅ Galereyadan rasm tanlash va serverga yuklash
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Ruxsat kerak', 'Rasm tanlash uchun ruxsat bering');
       return;
     }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.8,
     });
+
     if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      setFormData({ ...formData, imageUrl: result.assets[0].uri });
+      const uri = result.assets[0].uri;
+      await uploadImageToServer(uri);
     }
   };
 
-  // ✅ Kamera orqali rasm olish
+  // ✅ Kamera orqali rasm olish va serverga yuklash
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Ruxsat kerak', 'Kamera ishlatish uchun ruxsat bering');
       return;
     }
+
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.8,
     });
+
     if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      setFormData({ ...formData, imageUrl: result.assets[0].uri });
+      const uri = result.assets[0].uri;
+      await uploadImageToServer(uri);
+    }
+  };
+
+  // ✅ Rasmni serverga yuklash funksiyasi
+  const uploadImageToServer = async (uri) => {
+    setUploading(true);
+    try {
+      const response = await uploadAPI.uploadCakeImage(uri);
+      
+      if (response.data.success) {
+        setImageUri(uri);
+        setFormData(prev => ({ ...prev, imageUrl: response.data.data.imageUrl }));
+        Alert.alert('✅ Muvaffaqiyat', 'Rasm muvaffaqiyatli yuklandi');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      Alert.alert('Xato', error.response?.data?.message || 'Rasm yuklashda xato');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -128,13 +154,16 @@ const AdminCakesScreen = ({ navigation }) => {
       Alert.alert('Xato', 'Nom va narx majburiy');
       return;
     }
+    
     try {
       const submitData = {
         ...formData,
         price: parseFloat(formData.price),
         weight: formData.weight || null,
         ingredients: formData.ingredients || null,
+        // imageUrl allaqachon server URL
       };
+      
       if (editingCake) {
         await cakeAPI.update(editingCake.id, submitData);
         Alert.alert('Muvaffaqiyat', 'Tort yangilandi');
@@ -285,35 +314,57 @@ const AdminCakesScreen = ({ navigation }) => {
               <TextInput style={styles.input} value={formData.category} onChangeText={(text) => setFormData({ ...formData, category: text })} placeholder="Shokoladli, Vanilli..." />
             </View>
             
-            {/* ✅ Image Picker */}
+            {/* ✅ Image Upload Section */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Rasm</Text>
               <View style={styles.imagePickerContainer}>
-                {imageUri ? (
-                  <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
+                {formData.imageUrl ? (
+                  <Image source={{ uri: formData.imageUrl }} style={styles.previewImage} resizeMode="cover" />
                 ) : (
                   <View style={styles.imagePlaceholder}>
                     <Ionicons name="image-outline" size={40} color="#9CA3AF" />
                     <Text style={styles.imagePlaceholderText}>Rasm yo'q</Text>
                   </View>
                 )}
+                
                 <View style={styles.imageButtons}>
-                  <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-                    <Ionicons name="images" size={20} color="#fff" />
-                    <Text style={styles.imageButtonText}>Galereya</Text>
+                  <TouchableOpacity 
+                    style={[styles.imageButton, uploading && styles.imageButtonDisabled]} 
+                    onPress={pickImage}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="images" size={20} color="#fff" />
+                        <Text style={styles.imageButtonText}>Galereya</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-                    <Ionicons name="camera" size={20} color="#fff" />
-                    <Text style={styles.imageButtonText}>Kamera</Text>
+                  
+                  <TouchableOpacity 
+                    style={[styles.imageButton, uploading && styles.imageButtonDisabled]} 
+                    onPress={takePhoto}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="camera" size={20} color="#fff" />
+                        <Text style={styles.imageButtonText}>Kamera</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
+                
+                {uploading && (
+                  <Text style={styles.uploadingText}>📤 Rasm yuklanmoqda...</Text>
+                )}
               </View>
             </View>
             
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Rasm URL (ixtiyoriy)</Text>
-              <TextInput style={styles.input} value={formData.imageUrl} onChangeText={(text) => setFormData({ ...formData, imageUrl: text })} placeholder="https://..." />
-            </View>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Tavsif</Text>
               <TextInput style={[styles.input, styles.textArea]} value={formData.description} onChangeText={(text) => setFormData({ ...formData, description: text })} placeholder="Tort haqida ma'lumot..." multiline numberOfLines={3} />
@@ -407,9 +458,9 @@ const styles = StyleSheet.create({
   saveButtonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   // Image Picker Styles
   imagePickerContainer: { alignItems: 'center', marginBottom: 16 },
-  previewImage: { width: '100%', height: 150, borderRadius: 12, marginBottom: 12 },
+  previewImage: { width: '100%', height: 180, borderRadius: 12, marginBottom: 12 },
   imagePlaceholder: {
-    width: '100%', height: 150, borderRadius: 12,
+    width: '100%', height: 180, borderRadius: 12,
     backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center',
     marginBottom: 12,
   },
@@ -418,9 +469,11 @@ const styles = StyleSheet.create({
   imageButton: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FF6B6B', paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: 10, gap: 6,
+    borderRadius: 10, gap: 6, minWidth: 120, justifyContent: 'center',
   },
+  imageButtonDisabled: { backgroundColor: '#9CA3AF' },
   imageButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  uploadingText: { fontSize: 12, color: '#3B82F6', marginTop: 8, textAlign: 'center' },
 });
 
 export default AdminCakesScreen;

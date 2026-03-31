@@ -1,9 +1,8 @@
-// backend/src/app.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const path = require('path');
-const prisma = require('./config/prisma');  // ✅ PRISMA IMPORT!
+const path = require('path');  // ✅ Bor bo'lishi kerak
+const prisma = require('./config/prisma');
 
 dotenv.config();
 const app = express();
@@ -19,29 +18,32 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ✅ YANGI: Uploads folderini public qilish
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Test endpoint
 app.get('/api/auth/test', (req, res) => {
   res.json({ status: 'success', message: 'Backend ishlamoqda!' });
 });
 
 // Routes
-// Routes
 const authRoutes = require('./routes/auth.routes');
 const cakeRoutes = require('./routes/cake.routes');
 const commentRoutes = require('./routes/comment.routes');
-const likeRoutes = require('./routes/like.routes');  // ✅ YANGI
-const userRoutes = require('./routes/user.routes');  // ✅ YANGI
+const commentAdminRoutes = require('./routes/comment-admin.routes');
+const likeRoutes = require('./routes/like.routes');
+const userRoutes = require('./routes/user.routes');
 const orderRoutes = require('./routes/order.routes');
+const uploadRoutes = require('./routes/upload.routes');  // ✅ YANGI
 
 app.use('/api/auth', authRoutes);
 app.use('/api/cakes', cakeRoutes);
 app.use('/api/cakes', commentRoutes);
-app.use('/api/likes', likeRoutes);  // ✅ YANGI
-app.use('/api/users', userRoutes);  // ✅ YANGI
+app.use('/api/comments', commentAdminRoutes);
+app.use('/api/likes', likeRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
-
-// Uploads uchun static folder
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/api/upload', uploadRoutes);  // ✅ YANGI
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -65,11 +67,7 @@ const startServer = async () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📱 Local: http://localhost:${PORT}`);
       console.log(`📱 Network: http://192.168.43.147:${PORT}`);
-      console.log(`🔐 Auth: /api/auth/register, /login, /profile`);
-      console.log(`🍰 Cakes: /api/cakes`);
-      console.log(`💬 Comments: /api/cakes/:id/comments`);
-      console.log(`❤️ Likes: /api/cakes/:id/like`);
-      console.log(`🛒 Orders: /api/orders`);
+      console.log(`🖼️ Uploads: http://192.168.43.147:${PORT}/uploads/cakes/`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

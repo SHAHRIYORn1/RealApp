@@ -64,10 +64,13 @@ export const cakeAPI = {
 };
 
 // 💬 Comment API
+// 💬 Comment API
 export const commentAPI = {
   getByCake: (cakeId, params) => api.get(`/cakes/${cakeId}/comments`, { params }),
   create: (cakeId, data) => api.post(`/cakes/${cakeId}/comments`, data),
   delete: (id) => api.delete(`/comments/${id}`),
+  report: (id, reason) => api.post(`/comments/${id}/report`, { reason }),  // ✅ YANGI!
+  getReported: () => api.get('/comments/reported'),  // ✅ Admin uchun
 };
 
 // ❤️ Like API
@@ -89,9 +92,31 @@ export const orderAPI = {
 
 // 👤 User API
 // 👤 User API
+// 👤 User API
 export const userAPI = {
   getProfile: () => api.get('/users/me'),
-  updateProfile: (data) => api.put('/users/me', data),  // ✅ To'g'ri
+  updateProfile: (data) => api.put('/users/me', data),
+  // ✅ Admin functions
+  getAll: (params) => api.get('/users', { params }),
+  getById: (id) => api.get('/users/' + id),
+  delete: (id) => api.delete('/users/' + id),
 };
 
+
+// 🖼️ Upload API
+export const uploadAPI = {
+  uploadCakeImage: (imageUri) => {
+    const formData = new FormData();
+    formData.append('image', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'upload.jpg',
+    });
+    return api.post('/upload/cake-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+};
 export default api;

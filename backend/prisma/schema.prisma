@@ -22,9 +22,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders    Order[]
-  comments  Comment[]
-  likes     Like[]
+  orders   Order[]
+  comments Comment[]
+  likes    Like[]
+  reports  CommentReport[] // ✅ YANGI: Shikoyatlar
 
   @@map("users")
 }
@@ -32,6 +33,8 @@ model User {
 enum Role {
   USER
   ADMIN
+
+  @@map("role")
 }
 
 // 🍰 Cake Model
@@ -40,38 +43,37 @@ model Cake {
   name        String
   description String?
   price       Float
-  imageUrl    String?  // ✅ '?' qo'shing - optional qilish
+  imageUrl    String?
   category    String?
-  weight      String?  // ✅ '?' qo'shing - optional qilish
-  ingredients String?  // ✅ '?' qo'shing - optional qilish
+  weight      String?
+  ingredients String?
   isAvailable Boolean  @default(true)
   rating      Float    @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  likes       Like[]
-  comments    Comment[]
-  orderItems  OrderItem[]
+  likes      Like[]
+  comments   Comment[]
+  orderItems OrderItem[]
 
   @@map("cakes")
 }
 
-// backend/prisma/schema.prisma
-
+// 📦 Order Model
 model Order {
-  id              Int      @id @default(autoincrement())
-  userId          Int
-  address         String
-  phone           String
-  note            String?
-  additionalInfo  String?  // ✅ YANGI MAYDON!
-  totalAmount     Float
-  status          OrderStatus @default(PENDING)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             Int         @id @default(autoincrement())
+  userId         Int
+  address        String
+  phone          String
+  note           String?
+  additionalInfo String?
+  totalAmount    Float
+  status         OrderStatus @default(PENDING)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
-  user            User     @relation(fields: [userId], references: [id])
-  items           OrderItem[]
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
 
   @@map("orders")
 }
@@ -86,19 +88,18 @@ enum OrderStatus {
   @@map("order_status")
 }
 
-
 // 📦 OrderItem Model
 model OrderItem {
-  id        Int   @id @default(autoincrement())
-  orderId   Int
-  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  cakeId    Int
-  cake      Cake  @relation(fields: [cakeId], references: [id])
-  quantity  Int
-  price     Float
+  id       Int   @id @default(autoincrement())
+  orderId  Int
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  cakeId   Int
+  cake     Cake  @relation(fields: [cakeId], references: [id])
+  quantity Int
+  price    Float
 
-  @@map("order_items")
   @@unique([orderId, cakeId])
+  @@map("order_items")
 }
 
 // 💬 Comment Model
@@ -113,8 +114,10 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("comments")
+  reports CommentReport[] // ✅ YANGI: Shikoyatlar
+
   @@index([cakeId])
+  @@map("comments")
 }
 
 // ❤️ Like Model
@@ -128,4 +131,19 @@ model Like {
 
   @@unique([userId, cakeId])
   @@map("likes")
+}
+
+// 🚨 Comment Report Model (YANGI!)
+model CommentReport {
+  id        Int      @id @default(autoincrement())
+  commentId Int
+  userId    Int
+  reason    String   @db.Text
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId]) // Bir user bir commentni bir marta shikoyat qiladi
+  @@map("comment_reports")
 }

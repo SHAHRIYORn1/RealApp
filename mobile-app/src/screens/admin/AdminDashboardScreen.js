@@ -145,34 +145,40 @@ const AdminDashboardScreen = ({ navigation }) => {
         </View>
 
         {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tezkor Amallar</Text>
-          <View style={styles.actions}>
-            <TouchableOpacity 
-              style={styles.actionBtn}
-              onPress={() => navigation.navigate('AdminCakes')}
-            >
-              <Ionicons name="add-circle" size={36} color="#FF6B6B" />
-              <Text style={styles.actionText}>Yangi Tort</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionBtn}
-              onPress={() => navigation.navigate('AdminOrders')}
-            >
-              <Ionicons name="list" size={36} color="#3B82F6" />
-              <Text style={styles.actionText}>Buyurtmalar</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionBtn}
-              onPress={() => navigation.navigate('AdminRevenue')}
-            >
-              <Ionicons name="cash" size={36} color="#10B981" />
-              <Text style={styles.actionText}>Daromad</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <View style={styles.actions}>
+  <TouchableOpacity 
+    style={styles.actionBtn}
+    onPress={() => navigation.navigate('AdminCakes')}
+  >
+    <Ionicons name="add-circle" size={36} color="#FF6B6B" />
+    <Text style={styles.actionText}>Yangi Tort</Text>
+  </TouchableOpacity>
+  
+  <TouchableOpacity 
+    style={styles.actionBtn}
+    onPress={() => navigation.navigate('AdminOrders')}
+  >
+    <Ionicons name="list" size={36} color="#3B82F6" />
+    <Text style={styles.actionText}>Buyurtmalar</Text>
+  </TouchableOpacity>
+  
+  <TouchableOpacity 
+    style={styles.actionBtn}
+    onPress={() => navigation.navigate('AdminRevenue')}
+  >
+    <Ionicons name="cash" size={36} color="#10B981" />
+    <Text style={styles.actionText}>Daromad</Text>
+  </TouchableOpacity>
+  
+  {/* ✅ YANGI: Foydalanuvchilar tugmasi */}
+  <TouchableOpacity 
+    style={styles.actionBtn}
+    onPress={() => navigation.navigate('AdminUsers')}
+  >
+    <Ionicons name="people" size={36} color="#8B5CF6" />
+    <Text style={styles.actionText}>Foydalanuvchilar</Text>
+  </TouchableOpacity>
+</View>
 
         {/* Info Card */}
         <View style={styles.infoCard}>
@@ -290,6 +296,20 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 20,
   },
+  actions: { 
+  flexDirection: 'row', 
+  justifyContent: 'space-between',
+  flexWrap: 'wrap',  // ✅ Qatorlarga ajratish
+},
+actionBtn: {
+  width: '48%',  // ✅ 2x2 grid uchun
+  backgroundColor: '#F9FAFB',
+  borderRadius: 16,
+  padding: 20,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginBottom: 12,  // ✅ Qatorlar orasida joy
+}
 });
 
 export default AdminDashboardScreen;
