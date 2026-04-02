@@ -8,6 +8,7 @@ const getApiUrl = () => {
     return 'http://localhost:5000/api';
   }
   if (Platform.OS === 'android') {
+    // ✅ IP manzilni o'zingiznikiga moslang (ifconfig dan)
     return 'http://192.168.1.7:5000/api';
   }
   return 'http://192.168.1.7:5000/api';
@@ -35,7 +36,20 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    // ✅ 401 xato — token yoki user muammosi
+    if (error.response && error.response.status === 401) {
+      console.log('🔐 401 xato: Token yaroqsiz, logout qilinmoqda...');
+      
+      try {
+        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('user');
+        console.log('🔐 Token va user ma\'lumotlari o\'chirildi');
+      } catch (e) {
+        console.error('Storage error:', e);
+      }
+    }
+    
     if (error.response) {
       console.error('API Error:', error.response.status, error.response.data);
     } else if (error.request) {
@@ -64,13 +78,12 @@ export const cakeAPI = {
 };
 
 // 💬 Comment API
-// 💬 Comment API
 export const commentAPI = {
   getByCake: (cakeId, params) => api.get(`/cakes/${cakeId}/comments`, { params }),
   create: (cakeId, data) => api.post(`/cakes/${cakeId}/comments`, data),
   delete: (id) => api.delete(`/comments/${id}`),
-  report: (id, reason) => api.post(`/comments/${id}/report`, { reason }),  // ✅ YANGI!
-  getReported: () => api.get('/comments/reported'),  // ✅ Admin uchun
+  report: (id, reason) => api.post(`/comments/${id}/report`, { reason }),
+  getReported: () => api.get('/comments/reported'),
 };
 
 // ❤️ Like API
@@ -87,21 +100,17 @@ export const orderAPI = {
   getById: (id) => api.get(`/orders/${id}`),
   getAll: () => api.get('/orders/admin'),
   updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
-  delete: (id) => api.delete(`/orders/${id}`),  // ✅ YANGI!
+  delete: (id) => api.delete(`/orders/${id}`),
 };
 
-// 👤 User API
-// 👤 User API
 // 👤 User API
 export const userAPI = {
   getProfile: () => api.get('/users/me'),
   updateProfile: (data) => api.put('/users/me', data),
-  // ✅ Admin functions
   getAll: (params) => api.get('/users', { params }),
   getById: (id) => api.get('/users/' + id),
   delete: (id) => api.delete('/users/' + id),
 };
-
 
 // 🖼️ Upload API
 export const uploadAPI = {
@@ -119,4 +128,5 @@ export const uploadAPI = {
     });
   },
 };
+
 export default api;

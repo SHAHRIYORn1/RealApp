@@ -39,7 +39,6 @@ const RegisterScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // ✅ Register API chaqiruvi
       const response = await authAPI.register({ 
         name, 
         email, 
@@ -49,11 +48,9 @@ const RegisterScreen = ({ navigation }) => {
       
       const { user, token } = response.data.data;
       
-      // ✅ Token va user ni saqlash
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(user));
       
-      // ✅ AuthContext ni yangilash (login API chaqirmasdan!)
       login(user, token);
       
     } catch (error) {
@@ -148,11 +145,11 @@ const RegisterScreen = ({ navigation }) => {
           </TouchableOpacity>
 
           <View style={styles.footer}>
-  <Text style={styles.footerText}>Hisobingiz bormi? </Text>
-  <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-    <Text style={styles.footerLink}>Kirish</Text>
-  </TouchableOpacity>
-</View>
+            <Text style={styles.footerText}>Hisobingiz bormi? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.footerLink}>Kirish</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

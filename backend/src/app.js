@@ -1,15 +1,16 @@
+// backend/src/app.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const path = require('path');  // ✅ Bor bo'lishi kerak
+const path = require('path');
 const prisma = require('./config/prisma');
 
 dotenv.config();
 const app = express();
 
-// CORS sozlamalari
+// ✅ CORS sozlamalari
 app.use(cors({
-  origin: ['http://localhost:8081', 'http://192.168.43.147:8081', 'exp://*'],
+  origin: ['http://localhost:8081', 'http://192.168.1.7:8081', 'exp://*'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -18,15 +19,15 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ YANGI: Uploads folderini public qilish
+// ✅ Static files (uploads)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Test endpoint
+// ✅ Test endpoint
 app.get('/api/auth/test', (req, res) => {
   res.json({ status: 'success', message: 'Backend ishlamoqda!' });
 });
 
-// Routes
+// ✅ Routes
 const authRoutes = require('./routes/auth.routes');
 const cakeRoutes = require('./routes/cake.routes');
 const commentRoutes = require('./routes/comment.routes');
@@ -34,7 +35,7 @@ const commentAdminRoutes = require('./routes/comment-admin.routes');
 const likeRoutes = require('./routes/like.routes');
 const userRoutes = require('./routes/user.routes');
 const orderRoutes = require('./routes/order.routes');
-const uploadRoutes = require('./routes/upload.routes');  // ✅ YANGI
+const uploadRoutes = require('./routes/upload.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/cakes', cakeRoutes);
@@ -43,9 +44,9 @@ app.use('/api/comments', commentAdminRoutes);
 app.use('/api/likes', likeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/upload', uploadRoutes);  // ✅ YANGI
+app.use('/api/upload', uploadRoutes);
 
-// Error handler
+// ✅ Error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(500).json({
@@ -55,7 +56,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Server start
+// ✅ Server start
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
@@ -66,8 +67,8 @@ const startServer = async () => {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📱 Local: http://localhost:${PORT}`);
-      console.log(`📱 Network: http://192.168.43.147:${PORT}`);
-      console.log(`🖼️ Uploads: http://192.168.43.147:${PORT}/uploads/cakes/`);
+      console.log(`📱 Network: http://192.168.1.7:${PORT}`);
+      console.log(`🖼️ Uploads: http://192.168.1.7:${PORT}/uploads/cakes/`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -78,7 +79,7 @@ const startServer = async () => {
 
 startServer();
 
-// Graceful shutdown
+// ✅ Graceful shutdown
 process.on('SIGINT', async () => {
   await prisma.$disconnect();
   console.log('👋 Server stopped');

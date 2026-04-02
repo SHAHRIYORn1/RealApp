@@ -1,6 +1,7 @@
+// mobile-app/src/context/AuthContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// ✅ StyleSheet bu yerda KERAK EMAS (chunki bu context fayl)
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -8,7 +9,6 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Auth ma'lumotlarini yuklash
   useEffect(() => {
     const loadAuthData = async () => {
       try {
@@ -19,6 +19,7 @@ export const AuthProvider = ({ children }) => {
         if (storedToken && storedUser) {
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
+          console.log('✅ Auth loaded:', JSON.parse(storedUser));
         }
       } catch (error) {
         console.error('❌ Auth load error:', error);
@@ -29,21 +30,27 @@ export const AuthProvider = ({ children }) => {
     loadAuthData();
   }, []);
 
-  // ✅ Login funksiyasi
   const login = async (userData, authToken) => {
     try {
+      console.log('📥 Login context:', userData);
+      
       await AsyncStorage.setItem('token', authToken);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      
       setToken(authToken);
       setUser(userData);
-      console.log('✅ Login successful:', userData);
+      
+      console.log('✅ Login successful in context:', { 
+        id: userData.id, 
+        role: userData.role,
+        name: userData.name 
+      });
     } catch (error) {
       console.error('❌ Login error:', error);
       throw error;
     }
   };
 
-  // ✅ Logout funksiyasi
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('token');
@@ -56,21 +63,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ YANGI: User ma'lumotlarini yangilash (UI darhol yangilanishi uchun)
   const updateUser = async (updatedData) => {
     try {
       if (!user) return;
-      
-      // Yangi user obyekti yaratish
       const newUser = { ...user, ...updatedData };
-      
-      // AsyncStorage ga saqlash
       await AsyncStorage.setItem('user', JSON.stringify(newUser));
-      
-      // State ni yangilash (UI darhol o'zgaradi)
       setUser(newUser);
-      
-      console.log('✅ User updated in context:', newUser);
+      console.log('✅ User updated:', newUser);
       return newUser;
     } catch (error) {
       console.error('❌ updateUser error:', error);
@@ -78,27 +77,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ Refresh user data from AsyncStorage (ixtiyoriy)
-  const refreshUser = async () => {
-    try {
-      const storedUser = await AsyncStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-    } catch (error) {
-      console.error('❌ refreshUser error:', error);
-    }
-  };
-
-  // ✅ Context value
   const value = {
     user,
     token,
     loading,
     login,
     logout,
-    updateUser,  // ✅ Yangi funksiya
-    refreshUser, // ✅ Ixtiyoriy
+    updateUser,
     isAuthenticated: !!token,
     isAdmin: user?.role === 'ADMIN',
   };
@@ -110,7 +95,6 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// ✅ Custom hook
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

@@ -22,10 +22,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders   Order[]
-  comments Comment[]
-  likes    Like[]
-  reports  CommentReport[] // ✅ YANGI: Shikoyatlar
+  orders    Order[]
+  comments  Comment[]
+  likes     Like[]
+  reports   CommentReport[]
 
   @@map("users")
 }
@@ -72,7 +72,7 @@ model Order {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  user  User        @relation(fields: [userId], references: [id])
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   items OrderItem[]
 
   @@map("orders")
@@ -114,7 +114,7 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reports CommentReport[] // ✅ YANGI: Shikoyatlar
+  reports CommentReport[]
 
   @@index([cakeId])
   @@map("comments")
@@ -133,7 +133,7 @@ model Like {
   @@map("likes")
 }
 
-// 🚨 Comment Report Model (YANGI!)
+// 🚨 Comment Report Model
 model CommentReport {
   id        Int      @id @default(autoincrement())
   commentId Int
@@ -144,6 +144,6 @@ model CommentReport {
   comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([commentId, userId]) // Bir user bir commentni bir marta shikoyat qiladi
+  @@unique([commentId, userId])
   @@map("comment_reports")
 }

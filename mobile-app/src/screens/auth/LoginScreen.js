@@ -31,16 +31,13 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // ✅ Faqat email va password yuborish (user obyekti emas!)
       const response = await authAPI.login({ email, password });
       
       const { user, token } = response.data.data;
       
-      // Token va user ni saqlash
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(user));
       
-      // AuthContext ni yangilash
       login(user, token);
       
     } catch (error) {
@@ -101,11 +98,11 @@ const LoginScreen = ({ navigation }) => {
           </TouchableOpacity>
 
           <View style={styles.footer}>
-  <Text style={styles.footerText}>Hisobingiz yo'qmi? </Text>
-  <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-    <Text style={styles.footerLink}>Ro'yxatdan o'tish</Text>
-  </TouchableOpacity>
-</View>
+            <Text style={styles.footerText}>Hisobingiz yo'qmi? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+              <Text style={styles.footerLink}>Ro'yxatdan o'tish</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -2,24 +2,35 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
 
-// ✅ Protect route - faqat authenticated users uchun
+const JWT_SECRET = process.env.JWT_SECRET || 'olaja-tort-super-secret-key-2026-fixed';
+
 exports.protect = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Tizimga kiring'
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Tizimga kirish kerak' 
       });
     }
 
-    const token = authHeader.split(' ')[1];
+    console.log('🔐 Verifying token...');
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log('🔐 Token decoded:', { id: decoded.id, role: decoded.role });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token noto\'g\'ri formatda' 
+      });
+    }
 
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: decoded.id },
       select: {
         id: true,
         name: true,
@@ -31,38 +42,44 @@ exports.protect = async (req, res, next) => {
     });
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Foydalanuvchi topilmadi'
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Foydalanuvchi topilmadi' 
       });
     }
 
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
-    return res.status(401).json({
-      success: false,
-      message: 'Token noto\'g\'ri yoki muddati tugagan'
+    console.error('❌ Auth middleware error:', error.name, error.message);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token noto\'g\'ri yoki buzilgan' 
+      });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token muddati tugagan' 
+      });
+    }
+    
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Avtorizatsiya xatosi' 
     });
   }
 };
 
-// ✅ Admin only - faqat admin users uchun
-exports.admin = async (req, res, next) => {
-  try {
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({
-        success: false,
-        message: 'Faqat adminlar uchun'
-      });
-    }
+exports.admin = (req, res, next) => {
+  if (req.user && req.user.role === 'ADMIN') {
     next();
-  } catch (error) {
-    console.error('Admin middleware error:', error);
-    return res.status(403).json({
-      success: false,
-      message: 'Ruxsat yo\'q'
+  } else {
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Admin ruxsati kerak' 
     });
   }
 };

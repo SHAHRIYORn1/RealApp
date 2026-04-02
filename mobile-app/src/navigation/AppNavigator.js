@@ -5,7 +5,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
-// Context
 import { useAuth } from '../context/AuthContext';
 
 // Auth Screens
@@ -40,13 +39,9 @@ const UserTabs = () => {
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Orders') {
-            iconName = focused ? 'cart' : 'cart-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
-          }
+          if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
+          else if (route.name === 'Orders') iconName = focused ? 'cart' : 'cart-outline';
+          else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#FF6B6B',
@@ -72,21 +67,17 @@ const AppNavigator = () => {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
-          // Auth Screens
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : user.role === 'ADMIN' ? (
-          // Admin Screens
           <>
             <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
             <Stack.Screen name="AdminCakes" component={AdminCakesScreen} />
             <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} />
             <Stack.Screen name="AdminRevenue" component={AdminRevenueScreen} />
             <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
-            
-            {/* Common screens for admin */}
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="CakeDetail" component={CakeDetailScreen} />
             <Stack.Screen name="Cart" component={CartScreen} />
@@ -94,7 +85,6 @@ const AppNavigator = () => {
             <Stack.Screen name="UserProfile" component={ProfileScreen} />
           </>
         ) : (
-          // User Screens
           <>
             <Stack.Screen name="MainTabs" component={UserTabs} />
             <Stack.Screen name="CakeDetail" component={CakeDetailScreen} />
