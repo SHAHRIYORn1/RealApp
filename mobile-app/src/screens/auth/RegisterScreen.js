@@ -20,30 +20,73 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const RegisterScreen = ({ navigation }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('+998'); // Avtomatik +998 bilan boshlanadi
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  
   const { login } = useAuth();
 
+  // 1. Email Validatsiyasi
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(String(email).toLowerCase());
+  };
+
+  // 2. Telefon Validatsiyasi (Realistik)
+  const validatePhone = (phone) => {
+    // +998 bilan boshlanishi va undan keyin 9 ta raqam bo'lishi kerak
+    const re = /^\+998\d{9}$/;
+    return re.test(phone);
+  };
+
   const handleRegister = async () => {
-    if (!name || !email || !password) {
-      Alert.alert('Xato', 'Ism, email va parolni kiriting');
+    // --- Tekshiruvlar (Validatsiya) ---
+
+    // 1. Ism tekshiruvi
+    if (!name.trim()) {
+      Alert.alert('Xato', 'Ismni kiriting');
+      return;
+    }
+    if (name.trim().length < 2) {
+      Alert.alert('Xato', 'Ism kamida 2 ta belgidan iborat bo\'lishi kerak');
       return;
     }
 
+    // 2. Email tekshiruvi
+    if (!validateEmail(email)) {
+      Alert.alert('Xato', 'Iltimos, to\'g\'ri email formatini kiriting (masalan: user@gmail.com)');
+      return;
+    }
+
+    // 3. Telefon tekshiruvi
+    if (!validatePhone(phone)) {
+      Alert.alert('Xato', 'Telefon raqam noto\'g\'ri.\n\nTalab:\n✅ +998 bilan boshlanishi\n✅ Jami 12 ta belgi bo\'lishi kerak\n\nMisol: +998901234567');
+      return;
+    }
+
+    // 4. Parol tekshiruvi
+    if (password.length < 6) {
+      Alert.alert('Xato', 'Parol kamida 6 ta belgidan iborat bo\'lishi kerak');
+      return;
+    }
+
+    // 5. Tasdiqlash tekshiruvi
     if (password !== confirmPassword) {
-      Alert.alert('Xato', 'Parollar mos kelmadi');
+      Alert.alert('Xato', 'Parollar bir-biriga mos kelmadi');
       return;
     }
 
+    // --- API so'rovini yuborish ---
     setLoading(true);
     try {
       const response = await authAPI.register({ 
         name, 
         email, 
         password, 
-        phone: phone || null 
+        phone // Telefon raqamni to'g'ri yuboramiz
       });
       
       const { user, token } = response.data.data;
@@ -74,6 +117,7 @@ const RegisterScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.form}>
+          {/* Ism */}
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={20} color="#9CA3AF" />
             <TextInput
@@ -85,11 +129,12 @@ const RegisterScreen = ({ navigation }) => {
             />
           </View>
 
+          {/* Email */}
           <View style={styles.inputContainer}>
             <Ionicons name="mail-outline" size={20} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder="Email (masalan: user@gmail.com)"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -97,37 +142,48 @@ const RegisterScreen = ({ navigation }) => {
             />
           </View>
 
+          {/* Telefon */}
           <View style={styles.inputContainer}>
             <Ionicons name="call-outline" size={20} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Telefon (ixtiyoriy)"
+              placeholder="+998 90 123 45 67"
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
+              maxLength={13} // +998 (4) + 9 raqam = 13 belgi
             />
           </View>
 
+          {/* Parol */}
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" />
             <TextInput
-              style={styles.input}
-              placeholder="Parol"
+              style={[styles.input, { flex: 1 }]}
+              placeholder="Parol (kamida 6 ta belgi)"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+              <Ionicons 
+                name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                size={22} 
+                color="#9CA3AF" 
+              />
+            </TouchableOpacity>
           </View>
 
+          {/* Parolni Tasdiqlash */}
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Parolni tasdiqlang"
+              placeholder="Parolni qaytadan kiriting"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              secureTextEntry
+              secureTextEntry={!showPassword} // Parolni ko'rsatish bilan birga bo'ladi
               autoCapitalize="none"
             />
           </View>
@@ -164,11 +220,27 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 15, color: '#6B7280', marginTop: 4 },
   form: { width: '100%' },
   inputContainer: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB',
-    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 14,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1, 
+    borderColor: '#D1D5DB', 
+    borderRadius: 12,
+    paddingHorizontal: 16, 
+    paddingVertical: 4,
+    marginBottom: 14,
+    height: 54,
   },
-  input: { flex: 1, marginLeft: 12, fontSize: 16, color: '#1F2937' },
+  input: { 
+    flex: 1, 
+    marginLeft: 12, 
+    fontSize: 16, 
+    color: '#1F2937',
+    height: '100%',
+  },
+  eyeIcon: {
+    padding: 8,
+  },
   button: {
     backgroundColor: '#FF6B6B', borderRadius: 12, paddingVertical: 16,
     alignItems: 'center', marginTop: 12,

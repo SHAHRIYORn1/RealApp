@@ -1,415 +1,418 @@
 // mobile-app/src/screens/order/CartScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Image,
-  TextInput,
-  Alert,
   StyleSheet,
+  Alert,
+  ScrollView,
+  TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
-import { useCart } from '../../context/CartContext';
 import { orderAPI } from '../../services/api';
 
 const CartScreen = ({ navigation }) => {
-  const { cartItems, updateQuantity, removeFromCart, clearCart, totalAmount } = useCart();
   const { isAuthenticated } = useAuth();
+  const [cartItems, setCartItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   
+  // Yetkazib berish ma'lumotlari
   const [address, setAddress] = useState('');
-  const [phone, setPhone] = useState('');
-  const [additionalInfo, setAdditionalInfo] = useState(''); // Qo'shimcha manzil
-  const [orderNote, setOrderNote] = useState(''); // Buyurtma izohi
-  const [loading, setLoading] = useState(false);
+  const [phone, setPhone] = useState('+998');
+  const [additionalInfo, setAdditionalInfo] = useState(''); // Qo'shimcha ma'lumot
+  const [note, setNote] = useState(''); // Izoh
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleCheckout = async () => {
-    // 1. Autentifikatsiya
-    if (!isAuthenticated) {
-      Alert.alert(
-        'Kirish kerak',
-        'Buyurtma berish uchun tizimga kiring',
-        [
-          { text: 'Bekor qilish', style: 'cancel' },
-          { text: 'Kirish', onPress: () => navigation.navigate('Login') },
-        ]
-      );
-      return;
-    }
+  useEffect(() => {
+    loadCart();
+  }, []);
 
-    // 2. Savatcha bo'shligi
-    if (cartItems.length === 0) {
-      Alert.alert('Savatcha bo\'sh', 'Buyurtma berish uchun savatchaga tort qo\'shing');
-      return;
-    }
-
-    // 3. Manzil va telefon
-    if (!address.trim()) {
-      Alert.alert('Manzil', 'Iltimos, manzilni kiriting');
-      return;
-    }
-
-    if (!phone.trim()) {
-      Alert.alert('Telefon', 'Iltimos, telefon raqamini kiriting');
-      return;
-    }
-
-    setLoading(true);
+  const loadCart = async () => {
     try {
-      const orderData = {
-        address: address.trim(),
-        phone: phone.trim(),
-        note: orderNote.trim() || null,
-        additionalInfo: additionalInfo.trim() || null,
-        items: cartItems.map(item => ({
-          cakeId: parseInt(item.cakeId),
-          quantity: parseInt(item.quantity),
-          price: parseFloat(item.price),
-        })),
-      };
-
-      console.log('📦 Buyurtma yuborilmoqda:', orderData);
-
-      const response = await orderAPI.create(orderData);
-      console.log('✅ Buyurtma muvaffaqiyatli:', response.data);
-
-      // Savatchani tozalash
-      clearCart();
-
-      Alert.alert(
-        '✅ Muvaffaqiyat!',
-        'Buyurtmangiz qabul qilindi!\nTez orada siz bilan bog\'lanamiz.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.goBack();
-            },
-          },
-        ]
-      );
+      const cartJson = await AsyncStorage.getItem('cart');
+      const cart = cartJson ? JSON.parse(cartJson) : [];
+      setCartItems(cart);
     } catch (error) {
-      console.error('❌ Buyurtma xatosi:', error.response?.data || error);
-      
-      const errorMessage = error.response?.data?.message || 'Buyurtma berishda xato';
-      Alert.alert('Xato', errorMessage);
+      console.error('Savatni yuklashda xato:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Savatcha bo'sh bo'lsa
-  if (cartItems.length === 0) {
+  const updateQuantity = async (index, change) => {
+    const newCart = [...cartItems];
+    const newQuantity = newCart[index].quantity + change;
+    
+    if (newQuantity < 1) {
+      // Agar 1 dan kam bo'lsa, o'chirishni so'rash
+      removeItem(index);
+      return;
+    }
+
+    newCart[index].quantity = newQuantity;
+    setCartItems(newCart);
+    
+    try {
+      await AsyncStorage.setItem('cart', JSON.stringify(newCart));
+    } catch (error) {
+      console.error('Savatni yangilashda xato:', error);
+    }
+  };
+
+  const removeItem = (index) => {
+    Alert.alert(
+      'O\'chirish',
+      'Bu tortni savatdan o\'chirmoqchimisiz?',
+      [
+        { text: 'Yo\'q', style: 'cancel' },
+        {
+          text: 'Ha',
+          style: 'destructive',
+          onPress: async () => {
+            const newCart = [...cartItems];
+            newCart.splice(index, 1);
+            setCartItems(newCart);
+            try {
+              await AsyncStorage.setItem('cart', JSON.stringify(newCart));
+            } catch (error) {
+              console.error('O\'chirishda xato:', error);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const getTotalPrice = () => {
+    return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
+  // ✅ Telefon validatsiyasi
+  const validatePhone = (text) => {
+    // +998 va 9 ta raqam bo'lishi kerak
+    return /^\+998\d{9}$/.test(text);
+  };
+
+  const handleOrder = async () => {
+    if (!isAuthenticated) {
+      Alert.alert('Kirish kerak', 'Buyurtma berish uchun tizimga kiring', [
+        { text: 'Bekor qilish' },
+        { text: 'Kirish', onPress: () => navigation.navigate('Login') }
+      ]);
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      Alert.alert('Savat bo\'sh', 'Iltimos, avval tortlarni tanlang.');
+      return;
+    }
+
+    if (!address.trim()) {
+      Alert.alert('Manzil kerak', 'Iltimos, yetkazib berish manzilini kiriting.');
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      Alert.alert('Telefon noto\'g\'ri', 'Telefon raqam +998 bilan boshlanishi va 12 ta belgidan iborat bo\'lishi kerak.\nMisol: +998901234567');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const orderData = {
+        address: address.trim(),
+        phone: phone.trim(),
+        note: note.trim() || null,
+        additionalInfo: additionalInfo.trim() || null,
+        items: cartItems.map(item => ({
+          cakeId: item.cakeId,
+          quantity: item.quantity,
+          price: item.price
+        }))
+      };
+
+      const response = await orderAPI.create(orderData);
+
+      if (response.data.success) {
+        await AsyncStorage.removeItem('cart');
+        Alert.alert(
+          '✅ Buyurtma qabul qilindi!',
+          `Buyurtmangiz muvaffaqiyatli yuborildi.\nTez orada siz bilan bog'lanamiz!`,
+          [
+            {
+              text: 'Bosh sahifa',
+              onPress: () => navigation.navigate('MainTabs', { screen: 'Home' })
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      Alert.alert('Xato', error.response?.data?.message || 'Buyurtma berishda xato yuz berdi');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Savatcha</Text>
-          <View style={styles.headerRight} />
-        </View>
-
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="cart-outline" size={60} color="#9CA3AF" />
-          </View>
-          <Text style={styles.emptyTitle}>Savatcha bo'sh</Text>
-          <Text style={styles.emptySubtitle}>
-            Xohlagan tortlaringizni tanlang va savatchaga qo'shing
-          </Text>
-
-          <TouchableOpacity
-            style={styles.browseButton}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <Text style={styles.browseButtonText}>Tortlarni ko'rish</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#FF6B6B" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Savatcha</Text>
-        <View style={styles.headerRight}>
-          <Text style={styles.itemCount}>{cartItems.length} ta</Text>
-        </View>
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Cart Items */}
-        <View style={styles.itemsSection}>
-          {cartItems.map((item, index) => (
-            <View key={item.cakeId}>
-              <View style={styles.cartItem}>
-                <View style={styles.itemImageContainer}>
-                  {item.imageUrl ? (
-                    <Image source={{ uri: item.imageUrl }} style={styles.itemImage} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.itemImagePlaceholder}>
-                      <Ionicons name="restaurant-outline" size={30} color="#9CA3AF" />
-                    </View>
-                  )}
-                </View>
-
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 200 }}>
+        
+        {/* 1. Savatdagi mahsulotlar */}
+        {cartItems.length > 0 ? (
+          <View style={styles.cartList}>
+            {cartItems.map((item, index) => (
+              <View key={index} style={styles.cartItem}>
+                <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
                 <View style={styles.itemDetails}>
-                  <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.itemPrice}>{item.price.toLocaleString()} so'm</Text>
-
-                  <View style={styles.quantityControl}>
-                    <TouchableOpacity
-                      style={styles.quantityButton}
-                      onPress={() => updateQuantity(item.cakeId, -1)}
-                    >
-                      <Ionicons name="remove" size={18} color="#1F2937" />
-                    </TouchableOpacity>
-
-                    <Text style={styles.quantityValue}>{item.quantity}</Text>
-
-                    <TouchableOpacity
-                      style={styles.quantityButton}
-                      onPress={() => updateQuantity(item.cakeId, 1)}
-                    >
-                      <Ionicons name="add" size={18} color="#1F2937" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.removeButton}
-                      onPress={() => removeFromCart(item.cakeId)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  <Text style={styles.itemPrice}>{(item.price * item.quantity).toLocaleString()} so'm</Text>
                 </View>
+                
+                <View style={styles.itemControls}>
+                  <TouchableOpacity 
+                    style={styles.qtyBtn} 
+                    onPress={() => updateQuantity(index, -1)}
+                  >
+                    <Ionicons name="remove" size={20} color="#FF6B6B" />
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.qtyText}>{item.quantity}</Text>
+                  
+                  <TouchableOpacity 
+                    style={styles.qtyBtn} 
+                    onPress={() => updateQuantity(index, 1)}
+                  >
+                    <Ionicons name="add" size={20} color="#FF6B6B" />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity 
+                  style={styles.deleteBtn}
+                  onPress={() => removeItem(index)}
+                >
+                  <Ionicons name="trash-outline" size={22} color="#FF6B6B" />
+                </TouchableOpacity>
               </View>
-              {index < cartItems.length - 1 && <View style={styles.itemDivider} />}
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyCart}>
+            <Ionicons name="cart-outline" size={80} color="#ccc" />
+            <Text style={styles.emptyText}>Savatingiz bo'sh</Text>
+            <TouchableOpacity 
+              style={styles.browseBtn}
+              onPress={() => navigation.navigate('MainTabs')}
+            >
+              <Text style={styles.browseText}>Tortlarni ko'rish</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 2. Yetkazib berish formasi (Rasmdagi qism) */}
+        {cartItems.length > 0 && (
+          <View style={styles.deliveryCard}>
+            <View style={styles.deliveryHeader}>
+              <Ionicons name="location" size={24} color="#FF6B6B" />
+              <Text style={styles.deliveryTitle}>Yetkazib berish</Text>
             </View>
-          ))}
-        </View>
 
-        {/* Delivery Info */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="location" size={20} color="#FF6B6B" />
-            <Text style={styles.sectionTitle}>Yetkazib berish</Text>
-          </View>
+            {/* Manzil */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Manzil *</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="location-outline" size={20} color="#888" style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ko'cha, uy, kvartira..."
+                  value={address}
+                  onChangeText={setAddress}
+                  multiline
+                />
+              </View>
+            </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Manzil *</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="location-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Ko'cha, uy, kvartira..."
-                value={address}
-                onChangeText={setAddress}
-                multiline
-              />
+            {/* Telefon */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Telefon *</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="call-outline" size={20} color="#888" style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="+998 90 123 45 67"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                />
+              </View>
+            </View>
+
+            {/* Qo'shimcha ma'lumot */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Qo'shimcha ma'lumot (Ixtiyoriy)</Text>
+              <View style={styles.textAreaContainer}>
+                <Ionicons name="map-outline" size={20} color="#888" style={{ marginRight: 10, marginTop: 10 }} />
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Agar manzilingizni kiritsangiz, sizni tezroq topamiz (Ixtiyoriy)"
+                  value={additionalInfo}
+                  onChangeText={setAdditionalInfo}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </View>
+
+            {/* Izoh */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Izoh (Ixtiyoriy)</Text>
+              <View style={styles.textAreaContainer}>
+                <Ionicons name="chatbubble-outline" size={20} color="#888" style={{ marginRight: 10, marginTop: 10 }} />
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Buyurtma bo'yicha qo'shimcha izoh..."
+                  value={note}
+                  onChangeText={setNote}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
             </View>
           </View>
+        )}
+      </ScrollView>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Telefon *</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="call-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="+998 90 123 45 67"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
+      {/* Pastki qism: Jami va Buyurtma berish */}
+      {cartItems.length > 0 && (
+        <View style={styles.footer}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Jami:</Text>
+            <Text style={styles.totalPrice}>{getTotalPrice().toLocaleString()} so'm</Text>
           </View>
-
-          {/* ✅ Qo'shimcha manzil (ixtiyoriy) */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Qo'shimcha ma'lumot (Ixtiyoriy)</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="map-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, styles.inputMultiline]}
-                placeholder="Agar manzilingizni kiritsangiz, sizni tezroq topamiz (Ixtiyoriy)"
-                value={additionalInfo}
-                onChangeText={setAdditionalInfo}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-          </View>
-
-          {/* ✅ Buyurtma izohi (ixtiyoriy) */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Izoh (Ixtiyoriy)</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="chatbubble-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, styles.inputMultiline]}
-                placeholder="Buyurtma bo'yicha qo'shimcha izoh..."
-                value={orderNote}
-                onChangeText={setOrderNote}
-                multiline
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Payment Summary */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="card" size={20} color="#FF6B6B" />
-            <Text style={styles.sectionTitle}>To'lov</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Mahsulotlar</Text>
-            <Text style={styles.summaryValue}>{totalAmount.toLocaleString()} so'm</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Yetkazib berish</Text>
-            <Text style={styles.summaryValueFree}>Bepul</Text>
-          </View>
-
-          <View style={styles.summaryDivider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryTotal}>Jami</Text>
-            <Text style={styles.summaryTotalAmount}>{totalAmount.toLocaleString()} so'm</Text>
-          </View>
-        </View>
-
-        {/* Checkout Button */}
-        <View style={styles.checkoutContainer}>
-          <TouchableOpacity
-            style={[styles.checkoutButton, loading && styles.checkoutButtonDisabled]}
-            onPress={handleCheckout}
-            disabled={loading}
+          
+          <TouchableOpacity 
+            style={[styles.orderBtn, submitting && styles.orderBtnDisabled]} 
+            onPress={handleOrder}
+            disabled={submitting}
           >
-            {loading ? (
+            {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <>
-                <Ionicons name="bag-check" size={20} color="#fff" />
-                <Text style={styles.checkoutButtonText}>Buyurtma berish</Text>
-              </>
+              <Text style={styles.orderBtnText}>Buyurtma berish</Text>
             )}
           </TouchableOpacity>
         </View>
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </View>
+      )}
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  
   // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    paddingHorizontal: 16, paddingTop: 50, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 15,
+    borderBottomWidth: 1, borderBottomColor: '#eee', marginTop: Platform.OS === 'android' ? 30 : 0
   },
-  backButton: { padding: 4 },
-  headerTitle: {
-    flex: 1, fontSize: 20, fontWeight: 'bold', color: '#1F2937',
-    textAlign: 'center', marginRight: 24,
-  },
-  headerRight: { width: 24, alignItems: 'flex-end' },
-  itemCount: { fontSize: 14, color: '#FF6B6B', fontWeight: '600' },
-  // Scroll
+  backBtn: { padding: 5 },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+
+  // Content
   scrollView: { flex: 1 },
-  // Items Section
-  itemsSection: {
-    backgroundColor: '#fff', marginTop: 16, marginHorizontal: 16,
-    borderRadius: 16, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
+  
+  // Cart Items
+  cartList: { padding: 16 },
+  cartItem: {
+    flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, padding: 12,
+    marginBottom: 12, alignItems: 'center', elevation: 2
   },
-  cartItem: { flexDirection: 'row', padding: 16 },
-  itemDivider: { height: 1, backgroundColor: '#F3F4F6', marginLeft: 66 },
-  itemImageContainer: {
-    width: 66, height: 66, borderRadius: 12,
-    backgroundColor: '#F3F4F6', overflow: 'hidden',
+  itemImage: { width: 60, height: 60, borderRadius: 8, marginRight: 12 },
+  itemDetails: { flex: 1 },
+  itemName: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 4 },
+  itemPrice: { fontSize: 15, fontWeight: 'bold', color: '#FF6B6B' },
+  
+  itemControls: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5',
+    borderRadius: 8, padding: 4, marginRight: 12
   },
-  itemImage: { width: '100%', height: '100%' },
-  itemImagePlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  itemDetails: { flex: 1, marginLeft: 12, justifyContent: 'center' },
-  itemName: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
-  itemPrice: { fontSize: 16, fontWeight: 'bold', color: '#FF6B6B', marginBottom: 8 },
-  quantityControl: { flexDirection: 'row', alignItems: 'center' },
-  quantityButton: {
-    width: 32, height: 32, borderRadius: 8,
-    backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center',
+  qtyBtn: { width: 30, height: 30, justifyContent: 'center', alignItems: 'center' },
+  qtyText: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 10, minWidth: 20, textAlign: 'center' },
+  
+  deleteBtn: { padding: 5 },
+
+  // Empty Cart
+  emptyCart: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  emptyText: { fontSize: 18, color: '#888', marginTop: 16, marginBottom: 24 },
+  browseBtn: { backgroundColor: '#FF6B6B', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 25 },
+  browseText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+
+  // Delivery Card (Rasmdagi qism)
+  deliveryCard: {
+    backgroundColor: '#fff', margin: 16, marginTop: 0, borderRadius: 16,
+    padding: 16, elevation: 3
   },
-  quantityValue: { marginHorizontal: 16, fontSize: 16, fontWeight: 'bold', color: '#1F2937' },
-  removeButton: { marginLeft: 'auto', padding: 8 },
-  // Empty State
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyIcon: {
-    width: 120, height: 120, borderRadius: 60, backgroundColor: '#F3F4F6',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 24,
-  },
-  emptyTitle: { fontSize: 22, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 },
-  emptySubtitle: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
-  browseButton: {
-    backgroundColor: '#FF6B6B', paddingHorizontal: 40, paddingVertical: 16,
-    borderRadius: 14, shadowColor: '#FF6B6B', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
-  },
-  browseButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  // Section
-  section: {
-    backgroundColor: '#fff', marginTop: 16, marginHorizontal: 16,
-    borderRadius: 16, padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
-  },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginLeft: 8 },
-  // Input
+  deliveryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  deliveryTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginLeft: 8 },
+
   inputGroup: { marginBottom: 16 },
-  inputLabel: { fontSize: 14, color: '#6B7280', marginBottom: 8, fontWeight: '500' },
+  label: { fontSize: 14, color: '#666', marginBottom: 8, fontWeight: '500' },
   inputContainer: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB',
-    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 12,
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12
   },
-  inputIcon: { marginRight: 8 },
-  input: { flex: 1, fontSize: 15, color: '#1F2937' },
-  inputMultiline: { minHeight: 80, textAlignVertical: 'top', fontSize: 14 },
-  // Summary
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  summaryLabel: { fontSize: 15, color: '#6B7280' },
-  summaryValue: { fontSize: 15, color: '#1F2937', fontWeight: '600' },
-  summaryValueFree: { fontSize: 15, color: '#10B981', fontWeight: '600' },
-  summaryDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 12 },
-  summaryTotal: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
-  summaryTotalAmount: { fontSize: 22, fontWeight: 'bold', color: '#FF6B6B' },
-  // Checkout
-  checkoutContainer: { marginHorizontal: 16, marginTop: 24, marginBottom: 16 },
-  checkoutButton: {
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#FF6B6B', paddingVertical: 18, borderRadius: 16,
-    shadowColor: '#FF6B6B', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
+  textAreaContainer: {
+    flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#F9FAFB',
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingTop: 10
   },
-  checkoutButtonDisabled: { backgroundColor: '#9CA3AF', shadowColor: 'transparent', elevation: 0 },
-  checkoutButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 18, marginLeft: 8 },
-  // Loading
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  loadingText: { marginTop: 12, color: '#6B7280', fontSize: 16 },
+  input: { flex: 1, height: 44, color: '#333', fontSize: 15 },
+  textArea: { height: 80, textAlignVertical: 'top', paddingTop: 0 },
+
+  // Footer
+  footer: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#fff', padding: 16, paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+    borderTopWidth: 1, borderTopColor: '#eee', elevation: 10
+  },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  totalLabel: { fontSize: 18, color: '#666' },
+  totalPrice: { fontSize: 20, fontWeight: 'bold', color: '#FF6B6B' },
+  
+  orderBtn: {
+    backgroundColor: '#FF6B6B', borderRadius: 12, paddingVertical: 16, alignItems: 'center'
+  },
+  orderBtnDisabled: { backgroundColor: '#ccc' },
+  orderBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
 });
 
 export default CartScreen;

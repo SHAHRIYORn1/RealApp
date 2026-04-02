@@ -123,11 +123,11 @@ const FavoritesScreen = ({ navigation }) => {
             {'\n'}Yoqtirgan tortlaringizni like qiling!
           </Text>
           <TouchableOpacity
-            style={styles.browseButton}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <Text style={styles.browseButtonText}>Tortlarni ko'rish</Text>
-          </TouchableOpacity>
+  style={styles.browseButton}
+  onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+>
+  <Text style={styles.browseButtonText}>Tortlarni ko'rish</Text>
+</TouchableOpacity>
         </View>
       ) : (
         <FlatList

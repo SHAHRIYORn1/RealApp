@@ -31,7 +31,7 @@ import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// User Tab Navigator
+// ✅ User Tab Navigator — Home, Orders, Profile
 const UserTabs = () => {
   return (
     <Tab.Navigator
@@ -55,29 +55,31 @@ const UserTabs = () => {
   );
 };
 
-// Main App Navigator
+// ✅ Main App Navigator
 const AppNavigator = () => {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return null;
-  }
+  if (loading) return null;
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
+          // Auth Screens
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : user.role === 'ADMIN' ? (
+          // Admin Screens
           <>
             <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
             <Stack.Screen name="AdminCakes" component={AdminCakesScreen} />
             <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} />
             <Stack.Screen name="AdminRevenue" component={AdminRevenueScreen} />
             <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+            
+            {/* Common screens */}
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="CakeDetail" component={CakeDetailScreen} />
             <Stack.Screen name="Cart" component={CartScreen} />
@@ -85,6 +87,7 @@ const AppNavigator = () => {
             <Stack.Screen name="UserProfile" component={ProfileScreen} />
           </>
         ) : (
+          // ✅ User Screens — Nested Navigation
           <>
             <Stack.Screen name="MainTabs" component={UserTabs} />
             <Stack.Screen name="CakeDetail" component={CakeDetailScreen} />

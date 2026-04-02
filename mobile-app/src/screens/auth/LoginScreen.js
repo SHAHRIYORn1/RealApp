@@ -21,11 +21,28 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // ✅ Yangi: Parolni ko'rish holati
+  const [showPassword, setShowPassword] = useState(false);
+  
   const { login } = useAuth();
 
+  // ✅ Email formatini tekshirish funksiyasi
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(String(email).toLowerCase());
+  };
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Xato', 'Email va parolni kiriting');
+    // 1. Email Validatsiyasi
+    if (!validateEmail(email)) {
+      Alert.alert('Xato', 'Iltimos, to\'g\'ri email manzilini kiriting (masalan: user@gmail.com)');
+      return;
+    }
+
+    // 2. Parol Validatsiyasi
+    if (password.length < 6) {
+      Alert.alert('Xato', 'Parol kamida 6 ta belgidan iborat bo\'lishi kerak');
       return;
     }
 
@@ -61,11 +78,12 @@ const LoginScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.form}>
+          {/* Email Input */}
           <View style={styles.inputContainer}>
             <Ionicons name="mail-outline" size={20} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder="Email manzil"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -73,16 +91,28 @@ const LoginScreen = ({ navigation }) => {
             />
           </View>
 
+          {/* Parol Input + Ko'zcha Icon */}
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { flex: 1 }]}
               placeholder="Parol"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              secureTextEntry={!showPassword} // ✅ Show/Hide logic
               autoCapitalize="none"
             />
+            {/* ✅ Ko'zcha tugmasi */}
+            <TouchableOpacity 
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeIcon}
+            >
+              <Ionicons 
+                name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                size={22} 
+                color="#9CA3AF" 
+              />
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
@@ -117,11 +147,28 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: '#6B7280', marginTop: 4 },
   form: { width: '100%' },
   inputContainer: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB',
-    borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1, 
+    borderColor: '#D1D5DB', 
+    borderRadius: 12,
+    paddingHorizontal: 16, 
+    paddingVertical: 4, // Vertikal paddingni kamaytirdim icon uchun joy ochishga
+    marginBottom: 16,
+    height: 54, // Aniqlik uchun balandlik
   },
-  input: { flex: 1, marginLeft: 12, fontSize: 16, color: '#1F2937' },
+  input: { 
+    flex: 1, 
+    marginLeft: 12, 
+    fontSize: 16, 
+    color: '#1F2937',
+    height: '100%',
+    justifyContent: 'center'
+  },
+  eyeIcon: {
+    padding: 8, // Icon bosiladigan maydon
+  },
   button: {
     backgroundColor: '#FF6B6B', borderRadius: 12, paddingVertical: 16,
     alignItems: 'center', marginTop: 8,

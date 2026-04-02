@@ -13,8 +13,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
-import { cakeAPI, commentAPI, likeAPI } from '../../services/api';
+import { cakeAPI, commentAPI } from '../../services/api';
 
 const CakeDetailScreen = ({ route, navigation }) => {
   const { cakeId } = route.params;
@@ -24,9 +25,6 @@ const CakeDetailScreen = ({ route, navigation }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [totalLikes, setTotalLikes] = useState(0);
-  
   const [commentText, setCommentText] = useState('');
   const [rating, setRating] = useState(null);
 
@@ -40,12 +38,6 @@ const CakeDetailScreen = ({ route, navigation }) => {
       
       setCake(cakeRes.data?.data?.cake || null);
       setComments(commentsRes.data?.data?.comments || []);
-      
-      if (isAuthenticated) {
-        const likeRes = await likeAPI.check(cakeId);
-        setIsLiked(likeRes.data?.data?.isLiked || false);
-        setTotalLikes(likeRes.data?.data?.totalLikes || 0);
-      }
     } catch (error) {
       console.error('Data yuklashda xato:', error);
       Alert.alert('Xato', 'Ma\'lumotlarni yuklab bo\'lmadi');
@@ -64,9 +56,10 @@ const CakeDetailScreen = ({ route, navigation }) => {
     fetchCakeData();
   };
 
-  const handleLike = async () => {
+  // ✅ SAVATGA QO'SHISH (SON HAR DOIM 1 BO'LADI)
+  const handleAddToCart = async () => {
     if (!isAuthenticated) {
-      Alert.alert('Kirish kerak', 'Like bosish uchun tizimga kiring', [
+      Alert.alert('Kirish kerak', 'Buyurtma berish uchun tizimga kiring', [
         { text: 'Bekor qilish', style: 'cancel' },
         { text: 'Kirish', onPress: () => navigation.navigate('Login') }
       ]);
@@ -74,65 +67,88 @@ const CakeDetailScreen = ({ route, navigation }) => {
     }
 
     try {
-      const response = await likeAPI.toggle(cakeId);
-      setIsLiked(response.data?.data?.isLiked || false);
-      setTotalLikes(response.data?.data?.totalLikes || 0);
+      const cartJson = await AsyncStorage.getItem('cart');
+      const cart = cartJson ? JSON.parse(cartJson) : [];
+
+      const existingIndex = cart.findIndex(item => item.cakeId === cake.id);
+
+      if (existingIndex >= 0) {
+        // ✅ Agar allaqachon savatda bo'lsa, sonini 1 ga qaytaramiz (oshirmaymiz)
+        cart[existingIndex].quantity = 1;
+        await AsyncStorage.setItem('cart', JSON.stringify(cart));
+
+        Alert.alert(
+          '✅ Allaqachon qo\'shilgan',
+          `"${cake.name}" savatingizda mavjud. Soni 1 ta qilib saqlandi.`,
+          [
+            { text: 'Davom etish', style: 'cancel' },
+            { 
+  text: 'Savatga o\'tish', 
+  onPress: () => {
+    // Cart Stack ichida bo'lgani uchun to'g'ridan-to'g'ri navigate
+    navigation.navigate('Cart');
+  } 
+}
+          ]
+        );
+      } else {
+        // ✅ Yangi qo'shamiz, soni har doim 1
+        const newItem = {
+          cakeId: cake.id,
+          name: cake.name,
+          price: cake.price,
+          imageUrl: cake.imageUrl,
+          quantity: 1,
+        };
+        cart.push(newItem);
+        await AsyncStorage.setItem('cart', JSON.stringify(cart));
+
+        Alert.alert(
+          '✅ Qo\'shildi',
+          `"${cake.name}" savatga qo'shildi`,
+          [
+            { text: 'Davom etish', style: 'cancel' },
+            { text: 'Savatga o\'tish', onPress: () => navigation.navigate('Cart') }
+          ]
+        );
+      }
     } catch (error) {
-      Alert.alert('Xato', 'Like bosishda xato');
+      console.error('Savatga qo\'shish xatosi:', error);
+      Alert.alert('Xato', 'Savatga qo\'shishda xato yuz berdi');
     }
   };
 
-// ✅ Comment qo'shish — yaxshilangan xato xabarlari
-const handleAddComment = async () => {
-  if (!isAuthenticated) {
-    Alert.alert('Kirish kerak', 'Fikr qoldirish uchun tizimga kiring', [
-      { text: 'Bekor qilish', style: 'cancel' },
-      { text: 'Kirish', onPress: () => navigation.navigate('Login') }
-    ]);
-    return;
-  }
-
-  if (!commentText.trim()) {
-    Alert.alert('Xato', 'Fikr matni bo\'sh bo\'lishi mumkin emas');
-    return;
-  }
-
-  try {
-    const response = await commentAPI.create(cakeId, {
-      text: commentText,
-      rating: rating || null
-    });
-
-    if (response.data.success) {
-      setComments([response.data.data.comment, ...comments]);
-      setCommentText('');
-      setRating(null);
-      Alert.alert('✅ Muvaffaqiyat', 'Fikringiz qo\'shildi');
+  const handleAddComment = async () => {
+    if (!isAuthenticated) {
+      Alert.alert('Kirish kerak', 'Fikr qoldirish uchun tizimga kiring');
+      return;
     }
-  } catch (error) {
-    // ✅ User-friendly xato xabarlari
-    const errorCode = error.response?.status;
-    const errorMsg = error.response?.data?.message;
-    
-    if (errorCode === 400) {
+    if (!commentText.trim()) {
+      Alert.alert('Xato', 'Fikr matni bo\'sh bo\'lishi mumkin emas');
+      return;
+    }
+
+    try {
+      const response = await commentAPI.create(cakeId, {
+        text: commentText,
+        rating: rating || null
+      });
+
+      if (response.data.success) {
+        setComments([response.data.data.comment, ...comments]);
+        setCommentText('');
+        setRating(null);
+        Alert.alert('✅ Muvaffaqiyat', 'Fikringiz qo\'shildi');
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.message;
       if (errorMsg?.includes('2 ta fikr')) {
-        Alert.alert('ℹ️ Cheklov', 'Siz bu tortga allaqachon 2 ta fikr qoldirgansiz.\nBoshqa tortlarga fikr yozishingiz mumkin.');
+        Alert.alert('ℹ️ Cheklov', 'Siz bu tortga allaqachon 2 ta fikr qoldirgansiz');
         return;
       }
-      if (errorMsg?.includes('matni majburiy')) {
-        Alert.alert('Xato', 'Fikr matni bo\'sh bo\'lishi mumkin emas');
-        return;
-      }
-      if (errorMsg?.includes('Rating')) {
-        Alert.alert('Xato', 'Rating 1 dan 5 gacha bo\'lishi kerak');
-        return;
-      }
+      Alert.alert('Xato', errorMsg || 'Fikr qo\'shishda xato');
     }
-    
-    // Boshqa xatolar uchun
-    Alert.alert('Xato', errorMsg || 'Fikr qo\'shishda xato');
-  }
-};
+  };
 
   const handleDeleteComment = (commentId) => {
     Alert.alert(
@@ -157,71 +173,38 @@ const handleAddComment = async () => {
     );
   };
 
-  // ✅ Report comment funksiyasi
   const handleReportComment = (commentId) => {
     Alert.alert(
       'Fikrni shikoyat qilish',
       'Bu fikrni nima uchun shikoyat qilmoqchisiz?',
       [
         { text: 'Bekor qilish', style: 'cancel' },
-        {
-          text: 'Spam',
-          onPress: () => submitReport(commentId, 'Spam reklama')
-        },
-        {
-          text: 'Haqorat',
-          onPress: () => submitReport(commentId, 'Haqoratli so\'zlar')
-        },
-        {
-          text: 'Yolg\'on',
-          onPress: () => submitReport(commentId, 'Yolg\'on ma\'lumot')
-        },
-        {
-          text: 'Boshqa',
-          onPress: () => submitReport(commentId, 'Boshqa sabab')
-        }
+        { text: 'Spam', onPress: () => submitReport(commentId, 'Spam reklama') },
+        { text: 'Haqorat', onPress: () => submitReport(commentId, 'Haqoratli so\'zlar') },
+        { text: 'Yolg\'on', onPress: () => submitReport(commentId, 'Yolg\'on ma\'lumot') },
+        { text: 'Boshqa', onPress: () => submitReport(commentId, 'Boshqa sabab') }
       ]
     );
   };
 
-  // ✅ Report yuborish
-// ✅ Report yuborish — yaxshilangan xato xabarlari
-const submitReport = async (commentId, reason) => {
-  try {
-    const response = await commentAPI.report(commentId, reason);
-    
-    if (response.data.autoDeleted) {
-      Alert.alert(
-        '✅ Shikoyat qabul qilindi',
-        'Bu fikr avtomatik o\'chirildi (3 ta shikoyat tushdi)'
-      );
-      setComments(prev => prev.filter(c => c.id !== commentId));
-    } else {
-      Alert.alert(
-        '✅ Shikoyat qabul qilindi',
-        'Rahmat! ' + response.data.reportCount + '/3 ta shikoyat tushdi.\n3 ta bo\'lganda avtomatik o\'chiriladi.'
-      );
-    }
-  } catch (error) {
-    // ✅ User-friendly xato xabarlari
-    const errorCode = error.response?.status;
-    const errorMsg = error.response?.data?.message;
-    
-    if (errorCode === 400) {
-      if (errorMsg?.includes('allaqachon shikoyat')) {
+  const submitReport = async (commentId, reason) => {
+    try {
+      const response = await commentAPI.report(commentId, reason);
+      if (response.data.autoDeleted) {
+        Alert.alert('✅ Shikoyat qabul qilindi', 'Bu fikr avtomatik o\'chirildi');
+        setComments(prev => prev.filter(c => c.id !== commentId));
+      } else {
+        Alert.alert('✅ Shikoyat qabul qilindi', response.data.reportCount + '/3 ta shikoyat tushdi');
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.message;
+      if (errorMsg?.includes('allaqachon')) {
         Alert.alert('ℹ️ Eslatma', 'Siz oldin bu fikrga shikoyat bergansiz');
         return;
       }
-      if (errorMsg?.includes('o\'z fikringizni')) {
-        Alert.alert('ℹ️ Eslatma', 'O\'z fikringizni shikoyat qila olmaysiz');
-        return;
-      }
+      Alert.alert('Xato', errorMsg || 'Shikoyat yuborishda xato');
     }
-    
-    // Boshqa xatolar uchun
-    Alert.alert('Xato', errorMsg || 'Shikoyat yuborishda xato');
-  }
-};
+  };
 
   const renderComment = ({ item }) => {
     const isOwner = item.userId === user?.id;
@@ -240,40 +223,26 @@ const submitReport = async (commentId, reason) => {
               </Text>
             </View>
           </View>
-          
           <View style={styles.commentActions}>
-            {/* ✅ REPORT TUGMASI (o'z commentini emas) */}
             {!isOwner && (
-              <TouchableOpacity 
-                style={styles.reportButton}
-                onPress={() => handleReportComment(item.id)}
-              >
+              <TouchableOpacity style={styles.reportButton} onPress={() => handleReportComment(item.id)}>
                 <Ionicons name="flag-outline" size={18} color="#EF4444" />
               </TouchableOpacity>
             )}
-            
-            {/* DELETE tugmasi (faqat owner yoki admin) */}
             {(isOwner || isAdmin) && (
-              <TouchableOpacity 
-                style={styles.deleteButton}
-                onPress={() => handleDeleteComment(item.id)}
-              >
+              <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteComment(item.id)}>
                 <Ionicons name="trash-outline" size={18} color="#6B7280" />
               </TouchableOpacity>
             )}
           </View>
         </View>
-        
         <Text style={styles.commentText}>{item.text}</Text>
-        
         {item.rating && (
           <View style={styles.commentRating}>
             <Ionicons name="star" size={16} color="#F59E0B" />
             <Text style={styles.commentRatingText}>{item.rating}/5</Text>
           </View>
         )}
-
-        {/* Shikoyatlar soni (agar bo'lsa) */}
         {reportCount > 0 && (
           <View style={styles.reportCount}>
             <Ionicons name="warning" size={12} color="#F59E0B" />
@@ -339,7 +308,6 @@ const submitReport = async (commentId, reason) => {
             )}
           </View>
 
-          {/* Vazn va Tarkibi */}
           {cake?.weight && (
             <View style={styles.infoSection}>
               <Text style={styles.infoTitle}>⚖️ Vazn</Text>
@@ -361,16 +329,10 @@ const submitReport = async (commentId, reason) => {
             </View>
           )}
 
-          {/* Like Button */}
-          <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
-            <Ionicons 
-              name={isLiked ? 'heart' : 'heart-outline'} 
-              size={24} 
-              color={isLiked ? '#EF4444' : '#6B7280'} 
-            />
-            <Text style={[styles.likeText, isLiked && styles.likedText]}>
-              {totalLikes} ta like
-            </Text>
+          {/* ✅ BUYURTMA BERISH TUGMASI */}
+          <TouchableOpacity style={styles.orderButton} onPress={handleAddToCart}>
+            <Ionicons name="cart" size={24} color="#fff" />
+            <Text style={styles.orderButtonText}>🛒 Buyurtma Berish</Text>
           </TouchableOpacity>
         </View>
 
@@ -399,7 +361,6 @@ const submitReport = async (commentId, reason) => {
           <View style={styles.addCommentSection}>
             <Text style={styles.addCommentTitle}>Fikr qoldirish</Text>
             
-            {/* Rating */}
             <View style={styles.ratingContainer}>
               <Text style={styles.ratingLabel}>Rating:</Text>
               <View style={styles.stars}>
@@ -465,12 +426,30 @@ const styles = StyleSheet.create({
   infoSection: { marginBottom: 16 },
   infoTitle: { fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 6 },
   infoText: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
-  likeButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#F9FAFB', paddingVertical: 12, borderRadius: 12, marginTop: 8,
+  
+  // ✅ Buyurtma Berish Button Styles
+  orderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 16,
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  likeText: { fontSize: 15, color: '#6B7280', marginLeft: 8 },
-  likedText: { color: '#EF4444', fontWeight: '600' },
+  orderButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  
   commentsSection: { backgroundColor: '#fff', padding: 16, marginTop: 1 },
   commentsTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 12 },
   noComments: { alignItems: 'center', paddingVertical: 30 },

@@ -1,205 +1,217 @@
+// mobile-app/src/screens/profile/MyAddressesScreen.js
 import React, { useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
   TextInput,
-  StyleSheet,  // ✅ Borligiga ishonch hosil qiling
+  TouchableOpacity,
+  StyleSheet,
   Alert,
-  ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../context/AuthContext';
-import { userAPI } from '../../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const MyAddressesScreen = ({ navigation }) => {
-  const { user, updateUser } = useAuth();  // ✅ updateUser ni qo'shing
-  const [address, setAddress] = useState(user?.address || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+const MyAddressesScreen = ({ navigation, route }) => {
+  const { onSave } = route.params || {};
+  
+  const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('+998');
+  const [additionalInfo, setAdditionalInfo] = useState('');
+  const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // ✅ Telefon validatsiyasi
+  const validatePhone = (phone) => {
+    const re = /^\+998\d{9}$/;
+    return re.test(phone);
+  };
+
+  // ✅ Manzil validatsiyasi
+  const validateAddress = (address) => {
+    return address.trim().length >= 10;
+  };
+
   const handleSave = async () => {
-    if (!address.trim()) {
-      Alert.alert('Manzil', 'Iltimos, manzilni kiriting');
+    // 1. Manzil tekshiruvi
+    if (!validateAddress(address)) {
+      Alert.alert(
+        'Manzil noto\'g\'ri',
+        'Manzil kamida 10 ta belgidan iborat bo\'lishi kerak.\n\nMisol:\nToshkent sh, Chilonzor tumani, 12-kvartal, 45-uy',
+        [{ text: 'Tushunarli' }]
+      );
       return;
     }
-    if (!phone.trim()) {
-      Alert.alert('Telefon', 'Iltimos, telefon raqamini kiriting');
+
+    // 2. Telefon tekshiruvi
+    if (!validatePhone(phone)) {
+      Alert.alert(
+        'Telefon raqam noto\'g\'ri',
+        'Telefon raqam quyidagicha bo\'lishi kerak:\n\n✅ +998 bilan boshlanishi\n✅ Jami 12 ta belgi (+998 + 9 ta raqam)\n\nMisol: +998901234567',
+        [{ text: 'Tushunarli' }]
+      );
       return;
     }
 
     setLoading(true);
-    try {
-      console.log('📤 Manzil saqlash:', { 
-        phone: phone.trim(), 
-        address: address.trim() 
-      });
-      
-      const response = await userAPI.updateProfile({ 
-        phone: phone.trim(), 
-        address: address.trim() 
-      });
-      
-      console.log('📥 Javob:', response.data);
-      
-      if (response.data.success) {
-        // ✅ AuthContext ni yangilash
-        await updateUser({
-          phone: phone.trim(),
-          address: address.trim()
-        });
-        
-        Alert.alert('✅ Saqlandi', 'Manzilingiz muvaffaqiyatli saqlandi!', [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]);
-      } else {
-        throw new Error(response.data.message || 'Saqlashda xato');
+
+    const addressData = {
+      address: address.trim(),
+      phone: phone.trim(),
+      additionalInfo: additionalInfo.trim() || null,
+      note: note.trim() || null,
+    };
+
+    // Agar onSave funksiyasi berilgan bo'lsa (CartScreen dan)
+    if (onSave) {
+      onSave(addressData);
+      navigation.goBack();
+    } else {
+      // Saqlash (AsyncStorage ga)
+      try {
+        await AsyncStorage.setItem('userAddress', JSON.stringify(addressData));
+        Alert.alert('✅ Saqlandi', 'Manzilingiz muvaffaqiyatli saqlandi');
+        navigation.goBack();
+      } catch (error) {
+        Alert.alert('Xato', 'Saqlashda xato yuz berdi');
       }
-    } catch (error) {
-      console.error('❌ Saqlash xatosi:', error);
-      const errorMsg = error.response?.data?.message || error.message || 'Saqlashda xato yuz berdi';
-      Alert.alert('Xato', errorMsg);
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   };
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mening manzillarim</Text>
-        <View style={{ width: 40 }} />
+        <Text style={styles.headerTitle}>Manzil kiritish</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.content}>
-          <View style={styles.infoCard}>
-            <View style={styles.infoIcon}>
-              <Ionicons name="location" size={24} color="#FF6B6B" />
-            </View>
-            <Text style={styles.infoTitle}>Asosiy manzil</Text>
-            <Text style={styles.infoSubtitle}>
-              Yetkazib berish uchun asosiy manzilingiz
-            </Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Manzil */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Manzil *</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="location-outline" size={20} color="#888" style={{ marginRight: 10, marginTop: 10 }} />
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Ko'cha, uy, kvartira..."
+              value={address}
+              onChangeText={setAddress}
+              multiline
+              numberOfLines={3}
+            />
           </View>
+          <Text style={styles.hintText}>Kamida 10 ta belgi bo'lishi kerak</Text>
+        </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Manzil *</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="location-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Ko'cha, uy, kvartira..."
-                value={address}
-                onChangeText={setAddress}
-                multiline
-                numberOfLines={4}
-              />
-            </View>
+        {/* Telefon */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Telefon *</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="call-outline" size={20} color="#888" style={{ marginRight: 10 }} />
+            <TextInput
+              style={styles.input}
+              placeholder="+998 90 123 45 67"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              maxLength={13}
+            />
           </View>
+          <Text style={styles.hintText}>+998 bilan boshlanishi va 12 ta belgi bo'lishi kerak</Text>
+        </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Telefon *</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="call-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="+998 90 123 45 67"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-          </View>
-
-          <TouchableOpacity 
-            style={[styles.saveButton, loading && styles.saveButtonDisabled]} 
-            onPress={handleSave}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={20} color="#fff" />
-                <Text style={styles.saveButtonText}>Saqlash</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.hintCard}>
-            <Ionicons name="information-circle" size={20} color="#3B82F6" />
-            <Text style={styles.hintText}>
-              Manzilingizni to'liq kiriting, shunda yetkazib beruvchi sizni tezroq topadi.
-            </Text>
+        {/* Qo'shimcha ma'lumot */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Qo'shimcha ma'lumot (Ixtiyoriy)</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="map-outline" size={20} color="#888" style={{ marginRight: 10, marginTop: 10 }} />
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Uy oldi, 2-qavat, domofon 123..."
+              value={additionalInfo}
+              onChangeText={setAdditionalInfo}
+              multiline
+              numberOfLines={2}
+            />
           </View>
         </View>
+
+        {/* Izoh */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Buyurtma bo'yicha izoh (Ixtiyoriy)</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="chatbubble-outline" size={20} color="#888" style={{ marginRight: 10, marginTop: 10 }} />
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Buyurtma bo'yicha qo'shimcha izoh..."
+              value={note}
+              onChangeText={setNote}
+              multiline
+              numberOfLines={2}
+            />
+          </View>
+        </View>
+
+        {/* Saqlash tugmasi */}
+        <TouchableOpacity 
+          style={[styles.saveBtn, loading && styles.saveBtnDisabled]} 
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={24} color="#fff" />
+              <Text style={styles.saveBtnText}>Saqlash va davom etish</Text>
+            </>
+          )}
+        </TouchableOpacity>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  // Header
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
   header: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 15,
+    borderBottomWidth: 1, borderBottomColor: '#eee', marginTop: 30
   },
-  backButton: { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 20, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginRight: 24 },
-  // Scroll
+  backBtn: { padding: 5 },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  
   scrollView: { flex: 1 },
-  content: { padding: 16 },
-  // Info Card
-  infoCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 20,
-    alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
-  },
-  infoIcon: {
-    width: 60, height: 60, borderRadius: 30, backgroundColor: '#FEE2E2',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 12,
-  },
-  infoTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 4 },
-  infoSubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center' },
-  // Input
-  inputGroup: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
-  },
-  inputLabel: { fontSize: 14, color: '#6B7280', marginBottom: 10, fontWeight: '500' },
+  scrollContent: { padding: 16, paddingBottom: 40 },
+  
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 8 },
   inputContainer: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB',
-    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingTop: 10
   },
-  inputIcon: { marginRight: 8 },
-  input: { flex: 1, fontSize: 15, color: '#1F2937' },
-  textArea: { minHeight: 100, textAlignVertical: 'top' },
-  // Save Button
-  saveButton: {
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#FF6B6B', paddingVertical: 16, borderRadius: 16,
-    shadowColor: '#FF6B6B', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
-    marginBottom: 20,
+  input: { flex: 1, minHeight: 50, color: '#333', fontSize: 16 },
+  textArea: { minHeight: 80, textAlignVertical: 'top', paddingTop: 0 },
+  hintText: { fontSize: 13, color: '#888', marginTop: 6, marginLeft: 4 },
+  
+  saveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FF6B6B', borderRadius: 12, paddingVertical: 16, marginTop: 20
   },
-  saveButtonDisabled: { backgroundColor: '#9CA3AF', shadowColor: 'transparent', elevation: 0 },
-  saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginLeft: 8 },
-  // Hint Card
-  hintCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF',
-    padding: 14, borderRadius: 12,
-  },
-  hintText: { fontSize: 14, color: '#3B82F6', marginLeft: 10, flex: 1 },
+  saveBtnDisabled: { backgroundColor: '#ccc' },
+  saveBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginLeft: 8 },
 });
 
 export default MyAddressesScreen;
