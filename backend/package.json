@@ -1,31 +1,36 @@
 {
-  "name": "backend",
+  "name": "olaja-tort-backend",
   "version": "1.0.0",
+  "description": "Olaja Tort Markazi — Production Ready Backend API",
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
+    "build": "npx prisma generate",
+    "postinstall": "npx prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["express", "prisma", "postgresql", "api", "production"],
+  "author": "Iskandarov",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@prisma/client": "^6.0.0",
     "bcrypt": "^5.1.1",
-    "cors": "^2.8.6",
-    "dotenv": "^17.3.1",
-    "express": "^5.2.1",
-    "express-validator": "^7.3.1",
-    "joi": "^18.1.1",
-    "jsonwebtoken": "^9.0.3",
-    "multer": "^2.1.1",
-    "pg": "^8.20.0"
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.0",
+    "pg": "^8.13.0",
+    "path": "^0.12.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14",
+    "nodemon": "^3.1.7",
     "prisma": "^6.0.0"
-  },
-  "description": ""
+  }
 }

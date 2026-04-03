@@ -1,30 +1,56 @@
-// backend/src/app.js
+// backend/src/app.js — Production Ready
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const prisma = require('./config/prisma');
 
+// Load environment variables
 dotenv.config();
+
 const app = express();
+const PORT = process.env.PORT || 5000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// ✅ CORS sozlamalari
-app.use(cors({
-  origin: ['http://localhost:8081', 'http://192.168.1.7:8081', 'exp://*'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+// ✅ CORS Configuration — Hamma joydan ruxsat (Development uchun)
+// Production da o'z domeningizni qo'yishingiz mumkin
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN?.split(',') || ['*'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  maxAge: 86400, // 24 hours
+};
+app.use(cors(corsOptions));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ✅ Body parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ✅ Static files (uploads)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+  maxAge: '1y',
+  immutable: true,
+}));
+
+// ✅ Health check endpoint (Render va Monitoring uchun MUHIM)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Backend ishlamoqda!',
+    environment: NODE_ENV,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
 
 // ✅ Test endpoint
 app.get('/api/auth/test', (req, res) => {
-  res.json({ status: 'success', message: 'Backend ishlamoqda!' });
+  res.json({ 
+    status: 'success', 
+    message: 'Backend ishlamoqda!',
+    environment: NODE_ENV,
+  });
 });
 
 // ✅ Routes
@@ -46,29 +72,62 @@ app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/upload', uploadRoutes);
 
-// ✅ Error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({
+// ✅ 404 Handler (Not Found)
+app.use((req, res) => {
+  res.status(404).json({
     success: false,
-    message: 'Server xatosi',
-    error: err.message
+    message: 'Endpoint topilmadi',
+    path: req.originalUrl,
   });
 });
 
-// ✅ Server start
-const PORT = process.env.PORT || 5000;
+// ✅ Global Error Handler — Server crash bo'lmasligi uchun
+app.use((err, req, res, next) => {
+  console.error('❌ Global Error:', {
+    name: err.name,
+    message: err.message,
+    path: req.path,
+  });
 
+  // Prisma xatolari (masalan, unique constraint)
+  if (err.code === 'P2002') {
+    return res.status(400).json({
+      success: false,
+      message: 'Bu ma\'lumot allaqachon mavjud',
+      field: err.meta?.target?.[0] || 'unknown',
+    });
+  }
+
+  // Default error response
+  res.status(err.status || 500).json({
+    success: false,
+    message: NODE_ENV === 'production' ? 'Server xatosi' : err.message,
+    ...(NODE_ENV === 'development' && { error: err.message }),
+  });
+});
+
+// ✅ Graceful shutdown
+const gracefulShutdown = async (signal) => {
+  console.log(`👋 ${signal} signal received. Closing server...`);
+  await prisma.$disconnect();
+  console.log('✅ Database disconnected');
+  process.exit(0);
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// ✅ Server start
 const startServer = async () => {
   try {
     await prisma.$connect();
     console.log('✅ Database connected');
-    
+
+    // ✅ 0.0.0.0 — Internetga ochiq bo'lishi uchun muhim!
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📱 Local: http://localhost:${PORT}`);
-      console.log(`📱 Network: http://192.168.1.7:${PORT}`);
-      console.log(`🖼️ Uploads: http://192.168.1.7:${PORT}/uploads/cakes/`);
+      console.log(`🌐 Environment: ${NODE_ENV}`);
+      console.log(`🏥 Health: http://0.0.0.0:${PORT}/api/health`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -78,10 +137,3 @@ const startServer = async () => {
 };
 
 startServer();
-
-// ✅ Graceful shutdown
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  console.log('👋 Server stopped');
-  process.exit(0);
-});
